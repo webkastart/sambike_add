@@ -1,0 +1,45 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Campaign {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  headline    String
+  description String
+  imageUrl    String
+  priceText   String
+  ctaText     String   @default("Mám záujem")
+  offerType   String
+  phone       String
+  email       String
+  formEnabled Boolean  @default(true)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  leads       Lead[]
+
+  @@index([isActive])
+}
+
+model Lead {
+  id           String   @id @default(cuid())
+  campaignId   String
+  name         String
+  phone        String
+  email        String?
+  interestType String
+  note         String?
+  consent      Boolean
+  createdAt    DateTime @default(now())
+  campaign     Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId, createdAt])
+  @@index([createdAt])
+}
