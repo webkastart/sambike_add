@@ -32,6 +32,28 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         <p className="mt-4 whitespace-pre-wrap text-lg leading-relaxed text-[#374139]">{lead.note || "Bez poznámky."}</p>
         <p className="mt-10 text-xs text-[#8b938d]">Súhlas so spracovaním údajov: {lead.consent ? "áno" : "nie"}</p>
       </section>
+
+      {(lead.utmSource || lead.utmMedium || lead.utmCampaign || lead.utmContent || lead.utmTerm || lead.landingPage || lead.referrer) && (
+        <section className="mt-12 max-w-3xl border-t border-[var(--line)] pt-8">
+          <h2 className="text-sm font-semibold uppercase tracking-[.12em] text-[#8a928c]">Atribúcia návštevy</h2>
+          <dl className="mt-5 grid gap-x-10 gap-y-5 text-sm sm:grid-cols-2">
+            {[
+              ["UTM source", lead.utmSource],
+              ["UTM medium", lead.utmMedium],
+              ["UTM campaign", lead.utmCampaign],
+              ["UTM content", lead.utmContent],
+              ["UTM term", lead.utmTerm],
+              ["Landing page", lead.landingPage],
+              ["Referrer", lead.referrer],
+            ].filter((entry): entry is [string, string] => Boolean(entry[1])).map(([label, value]) => (
+              <div key={label}>
+                <dt className="text-xs uppercase tracking-[.1em] text-[#8a928c]">{label}</dt>
+                <dd className="mt-1 break-all text-[#48534b]">{value}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      )}
     </>
   );
 }

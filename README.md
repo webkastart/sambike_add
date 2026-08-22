@@ -28,6 +28,31 @@ Hlavné adresy:
 - záujemcovia: [http://localhost:3000/admin/leady](http://localhost:3000/admin/leady)
 - demo landing page: [http://localhost:3000/kampan/pozicovna](http://localhost:3000/kampan/pozicovna)
 
+## E-mailové notifikácie cez Resend
+
+Po odoslaní formulára sa požiadavka najprv uloží do databázy a následne sa na
+`sambike.snv@gmail.com` odošle e-mailová notifikácia. Ak Resend dočasne zlyhá,
+kontakt zostane bezpečne uložený v administrácii.
+
+Do lokálneho `.env` a do environment premenných hostingu nastavte:
+
+```bash
+RESEND_API_KEY="re_..."
+RESEND_FROM_EMAIL="SAMBIKE <leady@send.sambike.sk>"
+LEAD_NOTIFICATION_EMAIL="sambike.snv@gmail.com"
+APP_URL="https://vasa-domena.sk"
+NEXT_PUBLIC_META_PIXEL_ID="123456789012345"
+```
+
+Pre prvý test môžete ako odosielateľa použiť
+`SAMBIKE <onboarding@resend.dev>`. Táto testovacia doména posiela iba na e-mail
+vlastníka Resend účtu. Pre produkciu pridajte v Resend vlastnú doménu, vložte
+zobrazené SPF a DKIM záznamy do DNS a počkajte na stav `Verified`. Potom použite
+ľubovoľnú adresu na overenej doméne ako `RESEND_FROM_EMAIL`.
+
+`NEXT_PUBLIC_META_PIXEL_ID` je voliteľné. Ak zostane prázdne, landing page funguje
+bez Meta Pixelu; interné udalosti a UTM atribúcia sa naďalej zachytávajú.
+
 ## Demo dáta
 
 Seed vytvorí štyri kampane (`pozicovna`, `servis`, `letna-akcia`, jednu neaktívnu) a troch ukážkových záujemcov. Seed je bezpečné spustiť opakovane; kampane aktualizuje podľa slug-u a záujemcov pridá iba do prázdnej databázy.

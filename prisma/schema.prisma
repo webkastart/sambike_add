@@ -37,6 +37,14 @@ model Lead {
   interestType String
   note         String?
   consent      Boolean
+  campaignSlug String?
+  utmSource    String?
+  utmMedium    String?
+  utmCampaign  String?
+  utmContent   String?
+  utmTerm      String?
+  landingPage  String?
+  referrer     String?
   createdAt    DateTime @default(now())
   campaign     Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 

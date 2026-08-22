@@ -43,21 +43,52 @@ textarea.admin-field { min-height: 7rem; resize: vertical; }
 
 .landing-field {
   width: 100%;
-  border: 1px solid #dbe0dc;
-  border-radius: .75rem;
-  background: #fff;
-  padding: .9rem 1rem;
+  border: 0;
+  border-bottom: 1px solid #cfd7d0;
+  border-radius: 0;
+  background: transparent;
+  padding: .7rem 0;
   color: var(--ink);
   outline: none;
-  transition: border-color .18s ease, box-shadow .18s ease;
+  transition: border-color .18s ease;
 }
 
 .landing-field:focus {
-  border-color: #88948b;
-  box-shadow: 0 0 0 3px rgba(217,255,67,.32);
+  border-color: var(--ink);
 }
 
 .landing-field::placeholder { color: #99a29b; }
+
+.mobile-sticky-cta {
+  position: fixed;
+  z-index: 50;
+  right: .75rem;
+  bottom: .75rem;
+  left: .75rem;
+  display: none;
+  align-items: center;
+  gap: .5rem;
+  padding: .5rem;
+  padding-bottom: calc(.5rem + env(safe-area-inset-bottom));
+  border-radius: .85rem;
+  background: rgba(20, 34, 25, .96);
+  box-shadow: 0 10px 35px rgba(10, 20, 13, .2);
+  opacity: 0;
+  transform: translateY(calc(100% + 2rem));
+  pointer-events: none;
+  transition: opacity .2s ease, transform .25s ease;
+}
+
+.mobile-sticky-cta.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+@media (max-width: 767px) {
+  .campaign-page { padding-bottom: calc(4.75rem + env(safe-area-inset-bottom)); }
+  .mobile-sticky-cta { display: flex; }
+}
 
 @media (max-width: 767px) {
   .admin-table thead { display: none; }

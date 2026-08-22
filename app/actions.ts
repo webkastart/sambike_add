@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { slugify } from "@/lib/format";
+import { sendLeadNotification } from "@/lib/email";
 
 function text(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
@@ -93,11 +94,10 @@ export async function createLead(
   const name = text(formData, "name");
   const phone = text(formData, "phone");
   const email = text(formData, "email");
-  const interestType = text(formData, "interestType");
   const note = text(formData, "note");
   const consent = formData.get("consent") === "on";
 
-  if (!campaignId || !name || !phone || !interestType || !consent) {
+  if (!campaignId || !name || !phone || !consent) {
     return { success: false, message: "Skontrolujte povinné polia a súhlas." };
   }
 
@@ -106,17 +106,41 @@ export async function createLead(
     return { success: false, message: "Formulár už nie je dostupný." };
   }
 
-  await prisma.lead.create({
+  const lead = await prisma.lead.create({
     data: {
       campaignId,
       name,
       phone,
       email: email || null,
-      interestType,
+      interestType: campaign.offerType,
       note: note || null,
       consent,
+      campaignSlug: campaign.slug,
+      utmSource: text(formData, "utmSource").slice(0, 255) || null,
+      utmMedium: text(formData, "utmMedium").slice(0, 255) || null,
+      utmCampaign: text(formData, "utmCampaign").slice(0, 255) || null,
+      utmContent: text(formData, "utmContent").slice(0, 255) || null,
+      utmTerm: text(formData, "utmTerm").slice(0, 255) || null,
+      landingPage: text(formData, "landingPage").slice(0, 2000) || null,
+      referrer: text(formData, "referrer").slice(0, 2000) || null,
     },
   });
+
+  try {
+    await sendLeadNotification({
+      leadId: lead.id,
+      name: lead.name,
+      phone: lead.phone,
+      email: lead.email,
+      interestType: lead.interestType,
+      note: lead.note,
+      campaignName: campaign.name,
+      campaignSlug: campaign.slug,
+      createdAt: lead.createdAt,
+    });
+  } catch (error) {
+    console.error(`Notifikáciu pre lead ${lead.id} sa nepodarilo odoslať:`, error);
+  }
 
   revalidatePath("/admin");
   revalidatePath("/admin/leady");

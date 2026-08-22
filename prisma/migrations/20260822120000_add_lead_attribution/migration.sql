@@ -1,0 +1,8 @@
+ALTER TABLE "Lead" ADD COLUMN "campaignSlug" TEXT;
+ALTER TABLE "Lead" ADD COLUMN "utmSource" TEXT;
+ALTER TABLE "Lead" ADD COLUMN "utmMedium" TEXT;
+ALTER TABLE "Lead" ADD COLUMN "utmCampaign" TEXT;
+ALTER TABLE "Lead" ADD COLUMN "utmContent" TEXT;
+ALTER TABLE "Lead" ADD COLUMN "utmTerm" TEXT;
+ALTER TABLE "Lead" ADD COLUMN "landingPage" TEXT;
+ALTER TABLE "Lead" ADD COLUMN "referrer" TEXT;

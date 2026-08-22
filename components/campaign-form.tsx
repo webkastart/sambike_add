@@ -11,20 +11,20 @@ type CampaignField = {
   label: string;
   placeholder: string;
   required: boolean;
-  type?: "text" | "email" | "url";
+  type?: "text" | "email";
   wide?: boolean;
 };
 
 const fields: CampaignField[] = [
   { name: "name", label: "Názov kampane", placeholder: "Požičovňa e-bikov", required: true },
   { name: "slug", label: "Slug / verejná URL", placeholder: "pozicovna", required: true },
-  { name: "headline", label: "Hlavný nadpis", placeholder: "Objav Liptov na dvoch kolesách", required: true },
+  { name: "headline", label: "Hlavný nadpis", placeholder: "Objav Slovenský raj na dvoch kolesách", required: true },
   { name: "priceText", label: "Cena alebo cenový text", placeholder: "od 29 € / deň", required: true },
   { name: "ctaText", label: "Text CTA tlačidla", placeholder: "Rezervovať bicykel", required: true },
   { name: "offerType", label: "Typ ponuky", placeholder: "Požičovňa", required: true },
   { name: "phone", label: "Telefón", placeholder: "+421 905 123 456", required: true },
   { name: "email", label: "E-mail", placeholder: "ahoj@sambike.sk", required: true, type: "email" },
-  { name: "imageUrl", label: "URL hlavného obrázka", placeholder: "https://…", required: true, type: "url", wide: true },
+  { name: "imageUrl", label: "Hlavný obrázok", placeholder: "/foto.jpg alebo https://…", required: true, wide: true },
 ];
 
 export function CampaignForm({ campaign, action, submitLabel }: Props) {
