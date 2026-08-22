@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowUpRight, Plus, Users } from "lucide-react";
+import { CampaignGuide } from "@/components/campaign-guide";
 import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/format";
 
@@ -32,6 +33,8 @@ export default async function DashboardPage({
   const averageLeads = activeCount > 0 ? leadCount / activeCount : 0;
   const topCampaign = [...campaigns].sort((a, b) => b._count.leads - a._count.leads)[0];
   const campaignsByPerformance = [...campaigns].sort((a, b) => b._count.leads - a._count.leads);
+  const metaPixelConfigured = /^\d+$/.test(process.env.NEXT_PUBLIC_META_PIXEL_ID?.trim() ?? "");
+  const emailConfigured = Boolean(process.env.RESEND_API_KEY?.trim() && process.env.RESEND_FROM_EMAIL?.trim());
 
   return (
     <>
@@ -98,6 +101,8 @@ export default async function DashboardPage({
           {campaignsByPerformance.length === 0 && <p className="py-10 text-sm text-[#788179]">Výkon sa zobrazí po vytvorení prvej kampane.</p>}
         </div>
       </section>
+
+      <CampaignGuide metaPixelConfigured={metaPixelConfigured} emailConfigured={emailConfigured} />
 
       <section className="mt-14">
         <div className="flex items-center justify-between">
