@@ -6,7 +6,7 @@ import { LayoutDashboard, Megaphone, Users } from "lucide-react";
 
 const items = [
   { href: "/admin", label: "Prehľad", icon: LayoutDashboard, exact: true },
-  { href: "/admin", label: "Kampane", icon: Megaphone, exact: false },
+  { href: "/admin/kampane", label: "Kampane", icon: Megaphone, exact: false },
   { href: "/admin/leady", label: "Záujemcovia", icon: Users, exact: false },
 ];
 

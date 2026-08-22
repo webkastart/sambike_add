@@ -55,7 +55,7 @@ bez Meta Pixelu; interné udalosti a UTM atribúcia sa naďalej zachytávajú.
 
 ## Demo dáta
 
-Seed vytvorí štyri kampane (`pozicovna`, `servis`, `letna-akcia`, jednu neaktívnu) a troch ukážkových záujemcov. Seed je bezpečné spustiť opakovane; kampane aktualizuje podľa slug-u a záujemcov pridá iba do prázdnej databázy.
+Seed vloží štyri kampane (`pozicovna`, `servis`, `letna-akcia`, jednu neaktívnu) a troch ukážkových záujemcov iba do úplne novej databázy. Je bezpečné ho spustiť opakovane; existujúce produkčné dáta nikdy neprepíše.
 
 ```bash
 npm run db:seed

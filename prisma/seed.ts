@@ -64,14 +64,12 @@ const campaigns = [
   },
 ];
 
-for (const campaign of campaigns) {
-  await prisma.campaign.upsert({ where: { slug: campaign.slug }, update: campaign, create: campaign });
-}
+if ((await prisma.campaign.count()) === 0) {
+  await prisma.campaign.createMany({ data: campaigns });
 
-const rental = await prisma.campaign.findUnique({ where: { slug: "pozicovna" } });
-const service = await prisma.campaign.findUnique({ where: { slug: "servis" } });
+  const rental = await prisma.campaign.findUniqueOrThrow({ where: { slug: "pozicovna" } });
+  const service = await prisma.campaign.findUniqueOrThrow({ where: { slug: "servis" } });
 
-if (rental && service && (await prisma.lead.count()) === 0) {
   await prisma.lead.createMany({
     data: [
       { campaignId: rental.id, name: "Martin Novák", phone: "+421 907 222 111", email: "martin@example.com", interestType: "Celodenný prenájom", note: "Potrebujeme dva e-biky na sobotu.", consent: true, createdAt: new Date("2026-08-20T09:20:00.000Z") },
@@ -79,7 +77,9 @@ if (rental && service && (await prisma.lead.count()) === 0) {
       { campaignId: rental.id, name: "Peter Kováč", phone: "+421 911 123 987", interestType: "Víkendový prenájom", consent: true, createdAt: new Date("2026-08-18T07:10:00.000Z") },
     ],
   });
-}
 
-console.log("Demo kampane a záujemcovia boli vytvorení.");
+  console.log("Demo kampane a záujemcovia boli vytvorení.");
+} else {
+  console.log("Databáza už obsahuje kampane; seed nič nezmenil.");
+}
 await prisma.$disconnect();
