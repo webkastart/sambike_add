@@ -5,9 +5,9 @@ import { usePathname } from "next/navigation";
 import { LayoutDashboard, Megaphone, Users } from "lucide-react";
 
 const items = [
-  { href: "/admin", label: "Prehľad", icon: LayoutDashboard, exact: true },
-  { href: "/admin/kampane", label: "Kampane", icon: Megaphone, exact: false },
-  { href: "/admin/leady", label: "Záujemcovia", icon: Users, exact: false },
+  { href: "/admin", label: "Prehľad", icon: LayoutDashboard },
+  { href: "/admin/kampane#kampane", label: "Kampane", icon: Megaphone },
+  { href: "/admin/leady", label: "Záujemcovia", icon: Users },
 ];
 
 export function AdminNav() {
@@ -15,10 +15,10 @@ export function AdminNav() {
   return (
     <nav className="flex items-center gap-1 md:flex-col md:items-stretch" aria-label="Administrácia">
       {items.map((item, index) => {
-        const active = item.label === "Kampane"
-          ? pathname.startsWith("/admin/kampane")
-          : item.exact
-            ? pathname === item.href
+        const active = item.label === "Prehľad"
+          ? pathname === "/admin"
+          : item.label === "Kampane"
+            ? pathname.startsWith("/admin/kampane")
             : pathname.startsWith(item.href);
         const Icon = item.icon;
         return (

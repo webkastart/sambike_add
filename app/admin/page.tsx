@@ -104,7 +104,7 @@ export default async function DashboardPage({
 
       <CampaignGuide metaPixelConfigured={metaPixelConfigured} emailConfigured={emailConfigured} />
 
-      <section className="mt-14">
+      <section id="kampane" className="mt-14 scroll-mt-8">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Všetky kampane</h2>
           <span className="text-xs text-[#8a928c]">Verejné URL sú pripravené pre reklamy</span>
