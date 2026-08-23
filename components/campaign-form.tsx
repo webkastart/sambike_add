@@ -1,4 +1,5 @@
 import type { Campaign } from "@/generated/prisma/client";
+import { CampaignImageField } from "@/components/campaign-image-field";
 
 type Props = {
   campaign?: Campaign;
@@ -7,13 +8,56 @@ type Props = {
 };
 
 type CampaignField = {
-  name: "name" | "slug" | "headline" | "priceText" | "ctaText" | "offerType" | "phone" | "email" | "imageUrl";
+  name: "name" | "slug" | "headline" | "priceText" | "ctaText" | "offerType" | "phone" | "email";
   label: string;
   placeholder: string;
   required: boolean;
   type?: "text" | "email";
   wide?: boolean;
 };
+
+const imageFields = [
+  {
+    label: "Úvodný obrázok",
+    description: "Veľká fotografia na pozadí pri hlavnom nadpise.",
+    fileName: "imageFile",
+    urlName: "imageUrl",
+    campaignKey: "imageUrl",
+    fallbackUrl: undefined,
+  },
+  {
+    label: "Obrázok pri ponuke",
+    description: "Fotografia vedľa názvu, popisu a ceny kampane.",
+    fileName: "offerImageFile",
+    urlName: "offerImageUrl",
+    campaignKey: "offerImageUrl",
+    fallbackUrl: undefined,
+  },
+  {
+    label: "Galéria · prvá fotografia",
+    description: "Prvý obrázok v časti „Príprava pred jazdou“.",
+    fileName: "galleryImage1File",
+    urlName: "galleryImage1Url",
+    campaignKey: "galleryImage1Url",
+    fallbackUrl: "/501092085_18330718675164899_5154079394919144617_n.jpg",
+  },
+  {
+    label: "Galéria · druhá fotografia",
+    description: "Prostredný obrázok v časti „Príprava pred jazdou“.",
+    fileName: "galleryImage2File",
+    urlName: "galleryImage2Url",
+    campaignKey: "galleryImage2Url",
+    fallbackUrl: "/491416117_18327442552164899_6592296387915655104_n.jpg",
+  },
+  {
+    label: "Galéria · tretia fotografia",
+    description: "Posledný obrázok v časti „Príprava pred jazdou“.",
+    fileName: "galleryImage3File",
+    urlName: "galleryImage3Url",
+    campaignKey: "galleryImage3Url",
+    fallbackUrl: "/491371448_18327449569164899_1457638043555327763_n.jpg",
+  },
+] as const;
 
 const fields: CampaignField[] = [
   { name: "name", label: "Názov kampane", placeholder: "Požičovňa e-bikov", required: true },
@@ -22,9 +66,8 @@ const fields: CampaignField[] = [
   { name: "priceText", label: "Cena alebo podmienky", placeholder: "od 29 € / deň", required: true },
   { name: "ctaText", label: "Text hlavného tlačidla", placeholder: "Rezervovať bicykel", required: true },
   { name: "offerType", label: "Typ ponuky", placeholder: "Požičovňa", required: true },
-  { name: "phone", label: "Telefón", placeholder: "+421 905 123 456", required: true },
+  { name: "phone", label: "Telefón", placeholder: "0948 035 117", required: true },
   { name: "email", label: "E-mail", placeholder: "ahoj@sambike.sk", required: true, type: "email" },
-  { name: "imageUrl", label: "Hlavný obrázok", placeholder: "/foto.jpg alebo https://…", required: true, wide: true },
 ];
 
 export function CampaignForm({ campaign, action, submitLabel }: Props) {
@@ -54,6 +97,25 @@ export function CampaignForm({ campaign, action, submitLabel }: Props) {
             required
           />
         </label>
+        <div className="md:col-span-2 mt-3 border-t border-[var(--line)] pt-7">
+          <h2 className="text-lg font-semibold">Fotografie stránky</h2>
+          <p className="mt-1 text-sm text-[#737c75]">Pre každé miesto môžete nahrať inú fotografiu alebo vložiť odkaz.</p>
+        </div>
+        {imageFields.map((field, index) => (
+          <div key={field.urlName} className={`md:col-span-2 ${index > 0 ? "border-t border-[var(--line)] pt-7" : ""}`}>
+            <CampaignImageField
+              label={field.label}
+              description={field.description}
+              fileName={field.fileName}
+              urlName={field.urlName}
+              currentImageUrl={
+                campaign?.[field.campaignKey]
+                ?? (field.campaignKey === "offerImageUrl" ? campaign?.imageUrl : undefined)
+                ?? field.fallbackUrl
+              }
+            />
+          </div>
+        ))}
       </div>
 
       <div className="mt-10 flex flex-wrap gap-x-8 gap-y-4 border-t border-[var(--line)] pt-7">

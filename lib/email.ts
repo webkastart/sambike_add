@@ -36,6 +36,23 @@ function isEmail(value: string | null): value is string {
   return Boolean(value && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value));
 }
 
+function getNotificationEmails() {
+  const configuredEmails = process.env.LEAD_NOTIFICATION_EMAILS
+    ?? process.env.LEAD_NOTIFICATION_EMAIL
+    ?? DEFAULT_NOTIFICATION_EMAIL;
+  const emails = configuredEmails
+    .split(/[,;\n]/)
+    .map((email) => email.trim())
+    .filter(Boolean);
+  const invalidEmails = emails.filter((email) => !isEmail(email));
+
+  if (invalidEmails.length > 0) {
+    console.warn(`Neplatné adresy v LEAD_NOTIFICATION_EMAILS sa preskočili: ${invalidEmails.join(", ")}`);
+  }
+
+  return [...new Set(emails.filter((email) => isEmail(email)))];
+}
+
 function getAdminLeadUrl(leadId: string) {
   const appUrl = process.env.APP_URL?.trim();
   if (!appUrl) return null;
@@ -51,11 +68,11 @@ function getAdminLeadUrl(leadId: string) {
 export async function sendLeadNotification(lead: LeadNotification) {
   const apiKey = process.env.RESEND_API_KEY?.trim();
   const from = process.env.RESEND_FROM_EMAIL?.trim();
-  const to = process.env.LEAD_NOTIFICATION_EMAIL?.trim() || DEFAULT_NOTIFICATION_EMAIL;
+  const to = getNotificationEmails();
 
-  if (!apiKey || !from) {
+  if (!apiKey || !from || to.length === 0) {
     console.warn(
-      `E-mail pre lead ${lead.leadId} sa neodoslal: chýba RESEND_API_KEY alebo RESEND_FROM_EMAIL.`,
+      `E-mail pre lead ${lead.leadId} sa neodoslal: chýba konfigurácia Resend alebo platný príjemca.`,
     );
     return { sent: false as const, reason: "not_configured" as const };
   }

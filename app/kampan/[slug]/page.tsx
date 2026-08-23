@@ -27,12 +27,6 @@ const benefits = [
   "Za odoslanie formulára nič neplatíte",
 ];
 
-const servicePhotos = [
-  { src: serviceBikePhoto, alt: "Horský bicykel pripravený na servisnom stojane", caption: "Kontrola pred každou jazdou." },
-  { src: chainPhoto, alt: "Porovnanie znečistenej a vyčistenej bicyklovej reťaze", caption: "Pohon vyčistíme a skontrolujeme.", position: "top" },
-  { src: wheelServicePhoto, alt: "Servis náboja bicyklového kolesa v dielni", caption: "Skontrolujeme aj náboje a kolesá." },
-];
-
 const faq = [
   { question: "Musím platiť vopred?", answer: "Nie. Formulár je nezáväzný a platbu dohodneme až po potvrdení vašej požiadavky." },
   { question: "Kedy sa mi ozvete?", answer: "Ozveme sa čo najskôr na telefónne číslo, ktoré uvediete vo formulári." },
@@ -63,6 +57,25 @@ export default async function CampaignLandingPage({ params }: Props) {
     ? process.env.NEXT_PUBLIC_META_PIXEL_ID?.trim()
     : undefined;
   const isRemoteHero = /^https?:\/\//.test(campaign.imageUrl);
+  const offerImage = campaign.offerImageUrl || campaign.imageUrl;
+  const servicePhotos = [
+    {
+      src: campaign.galleryImage1Url || serviceBikePhoto,
+      alt: "Horský bicykel pripravený na servisnom stojane",
+      caption: "Kontrola pred každou jazdou.",
+    },
+    {
+      src: campaign.galleryImage2Url || chainPhoto,
+      alt: "Porovnanie znečistenej a vyčistenej bicyklovej reťaze",
+      caption: "Pohon vyčistíme a skontrolujeme.",
+      position: campaign.galleryImage2Url ? "center" : "top",
+    },
+    {
+      src: campaign.galleryImage3Url || wheelServicePhoto,
+      alt: "Servis náboja bicyklového kolesa v dielni",
+      caption: "Skontrolujeme aj náboje a kolesá.",
+    },
+  ];
 
   return (
     <main className="campaign-page min-h-screen bg-[#f8faf6]">
@@ -133,7 +146,7 @@ export default async function CampaignLandingPage({ params }: Props) {
 
       <section className="mx-auto grid max-w-7xl items-center gap-10 px-5 py-16 sm:px-8 lg:grid-cols-2 lg:gap-20 lg:px-12 lg:py-24">
         <div className="relative aspect-[4/3] overflow-hidden bg-[#e9ede7]">
-          <Image src={campaign.imageUrl} alt={campaign.headline} fill unoptimized={isRemoteHero} sizes="(max-width: 1024px) 100vw, 50vw" className="object-cover" />
+          <Image src={offerImage} alt={campaign.headline} fill unoptimized={typeof offerImage === "string" && /^https?:\/\//.test(offerImage)} sizes="(max-width: 1024px) 100vw, 50vw" className="object-cover" />
         </div>
         <div>
           <p className="text-xs font-bold uppercase tracking-[.18em] text-[#71805c]">Aktuálna ponuka</p>
@@ -155,13 +168,14 @@ export default async function CampaignLandingPage({ params }: Props) {
         </div>
         <div className="mt-8 grid gap-5 sm:grid-cols-3">
           {servicePhotos.map((photo) => (
-            <figure key={photo.src.src}>
+            <figure key={photo.caption}>
               <div className="relative aspect-[4/3] overflow-hidden bg-[#e9ede7]">
                 <Image
                   src={photo.src}
                   alt={photo.alt}
                   fill
-                  placeholder="blur"
+                  placeholder={typeof photo.src === "string" ? undefined : "blur"}
+                  unoptimized={typeof photo.src === "string" && /^https?:\/\//.test(photo.src)}
                   sizes="(max-width: 640px) 100vw, 33vw"
                   className="object-cover transition duration-700 hover:scale-[1.015]"
                   style={{ objectPosition: photo.position ?? "center" }}

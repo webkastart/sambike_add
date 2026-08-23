@@ -31,7 +31,7 @@ Hlavné adresy:
 ## E-mailové notifikácie cez Resend
 
 Po odoslaní formulára sa požiadavka najprv uloží do databázy a následne sa na
-`sambike.snv@gmail.com` odošle e-mailová notifikácia. Ak Resend dočasne zlyhá,
+nastavené admin adresy odošle e-mailová notifikácia. Ak Resend dočasne zlyhá,
 kontakt zostane bezpečne uložený v administrácii.
 
 Do lokálneho `.env` a do environment premenných hostingu nastavte:
@@ -39,14 +39,20 @@ Do lokálneho `.env` a do environment premenných hostingu nastavte:
 ```bash
 RESEND_API_KEY="re_..."
 RESEND_FROM_EMAIL="SAMBIKE <leady@send.sambike.sk>"
-LEAD_NOTIFICATION_EMAIL="sambike.snv@gmail.com"
+LEAD_NOTIFICATION_EMAILS="sambike.snv@gmail.com,vas.email@example.com"
 APP_URL="https://vasa-domena.sk"
 NEXT_PUBLIC_META_PIXEL_ID="123456789012345"
 ```
 
+Adresy v `LEAD_NOTIFICATION_EMAILS` oddeľte čiarkou. Notifikácia príde na každú
+uvedenú adresu. Ak ju na niektorú adresu dočasne nechcete posielať, odstráňte ju
+zo zoznamu a reštartujte alebo znovu nasaďte aplikáciu. Pôvodná premenná
+`LEAD_NOTIFICATION_EMAIL` s jednou adresou zostáva podporovaná.
+
 Pre prvý test môžete ako odosielateľa použiť
 `SAMBIKE <onboarding@resend.dev>`. Táto testovacia doména posiela iba na e-mail
-vlastníka Resend účtu. Pre produkciu pridajte v Resend vlastnú doménu, vložte
+vlastníka Resend účtu. Ak má notifikáciu dostať aj ďalší príjemca, pridajte v
+Resend vlastnú doménu, vložte
 zobrazené SPF a DKIM záznamy do DNS a počkajte na stav `Verified`. Potom použite
 ľubovoľnú adresu na overenej doméne ako `RESEND_FROM_EMAIL`.
 
@@ -81,7 +87,7 @@ npm run db:studio
 - formulár pre záujemcov so súhlasom, potvrdením po odoslaní a väzbou na kampaň
 - dashboard s počtom záujemcov a stavom kampaní
 - zoznam, filtrovanie a detail záujemcov
-- demo obsah a obrázky, ktoré sa dajú v administrácii nahradiť URL adresou
+- samostatné fotografie pre úvod, ponuku a tri pozície v galérii; každá sa dá nahrať alebo nastaviť URL adresou
 
 ## Štruktúra
 
@@ -106,4 +112,4 @@ public/                        # statické aktíva
 
 ## Hranice MVP
 
-Administrácia zámerne nemá autentifikáciu. Obrázok kampane sa zatiaľ nastavuje URL adresou, nie uploadom. Pred nasadením na verejný server treba doplniť prihlásenie, ochranu formulára proti spamu, produkčnú databázu a pravidlá uchovávania osobných údajov.
+Administrácia zámerne nemá autentifikáciu. Nahrané obrázky sa ukladajú lokálne do `storage/campaign-images`, preto treba pri nasadení na serverless hosting použiť trvalé objektové úložisko. Pred nasadením na verejný server treba doplniť prihlásenie, ochranu formulára proti spamu, produkčnú databázu a pravidlá uchovávania osobných údajov.

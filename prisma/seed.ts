@@ -5,6 +5,12 @@ import { PrismaClient } from "../generated/prisma/client";
 const adapter = new PrismaBetterSqlite3({ url: process.env.DATABASE_URL ?? "file:./prisma/dev.db" });
 const prisma = new PrismaClient({ adapter });
 
+const galleryImages = {
+  galleryImage1Url: "/501092085_18330718675164899_5154079394919144617_n.jpg",
+  galleryImage2Url: "/491416117_18327442552164899_6592296387915655104_n.jpg",
+  galleryImage3Url: "/491371448_18327449569164899_1457638043555327763_n.jpg",
+};
+
 const campaigns = [
   {
     name: "Požičovňa e-bikov",
@@ -12,6 +18,8 @@ const campaigns = [
     headline: "Objavte Slovenský raj na dvoch kolesách",
     description: "E-biky pripravené na výlet. Pomôžeme vám s trasou, nastavíme bicykel a vysvetlíme všetko potrebné.",
     imageUrl: "/448793415_8416634951699640_3471726067659934816_n.jpg",
+    offerImageUrl: "/448793415_8416634951699640_3471726067659934816_n.jpg",
+    ...galleryImages,
     priceText: "od 29 € / deň",
     ctaText: "Overiť dostupnosť",
     offerType: "Požičovňa e-bikov",
@@ -26,6 +34,8 @@ const campaigns = [
     headline: "Bicykel pripravený na sezónu",
     description: "Kompletná kontrola, nastavenie a základný servis do 48 hodín. Bicykel bude pripravený na ďalší výjazd.",
     imageUrl: "/501092085_18330718675164899_5154079394919144617_n.jpg",
+    offerImageUrl: "/501092085_18330718675164899_5154079394919144617_n.jpg",
+    ...galleryImages,
     priceText: "servis od 24 €",
     ctaText: "Overiť termín",
     offerType: "Servis",
@@ -40,6 +50,8 @@ const campaigns = [
     headline: "Detský bicykel zdarma",
     description: "Pri rezervácii 3 bicyklov získate detský bicykel na celý deň bezplatne. Platí počas letných prázdnin.",
     imageUrl: "/490386666_24035555779380972_5019809913561738254_n.jpg",
+    offerImageUrl: "/490386666_24035555779380972_5019809913561738254_n.jpg",
+    ...galleryImages,
     priceText: "detský bicykel zdarma",
     ctaText: "Chcem využiť akciu",
     offerType: "Letná rodinná akcia",
@@ -54,6 +66,8 @@ const campaigns = [
     headline: "Kampaň momentálne nie je aktívna",
     description: "Ukážka deaktivovanej kampane.",
     imageUrl: "/491416117_18327442552164899_6592296387915655104_n.jpg",
+    offerImageUrl: "/491416117_18327442552164899_6592296387915655104_n.jpg",
+    ...galleryImages,
     priceText: "—",
     ctaText: "Mám záujem",
     offerType: "Test",
