@@ -10,7 +10,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <div className="md:mt-12"><AdminNav /></div>
         </div>
         <p className="absolute bottom-6 left-6 hidden text-xs leading-relaxed text-[#929a94] md:block">
-          Lokálne MVP<br />bez autentifikácie
+          Administrácia<br />bez prihlásenia
         </p>
       </aside>
       <main className="px-5 pb-16 pt-24 md:ml-56 md:px-10 md:pt-10 lg:px-16">

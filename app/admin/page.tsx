@@ -42,16 +42,16 @@ export default async function DashboardPage({
         <div>
           <p className="text-xs font-semibold uppercase tracking-[.16em] text-[#7c867e]">Administrácia</p>
           <h1 className="mt-2 text-3xl font-semibold tracking-[-.035em] sm:text-4xl">Kampane</h1>
-          <p className="mt-2 text-sm text-[#737c75]">Správa reklám, landing pages a nových kontaktov.</p>
+          <p className="mt-2 text-sm text-[#737c75]">Kampane, ich verejné stránky a záujemcovia z formulárov.</p>
         </div>
         <Link href="/admin/kampane/nova" className="inline-flex w-fit items-center gap-2 rounded-lg bg-[var(--accent-dark)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#314336]">
-          <Plus size={16} /> Nová kampaň
+          <Plus size={16} /> Vytvoriť kampaň
         </Link>
       </header>
 
       {(query.created || query.deleted) && (
         <p className="mt-7 text-sm font-medium text-[#4e6a37]">
-          {query.created ? "Kampaň bola vytvorená." : "Kampaň bola vymazaná."}
+          {query.created ? "Kampaň bola vytvorená." : "Kampaň bola odstránená."}
         </p>
       )}
 
@@ -62,20 +62,20 @@ export default async function DashboardPage({
         <div><p className="text-3xl font-semibold tracking-tight">{leadsToday}</p><p className="mt-1 text-sm text-[#788179]">nových dnes</p></div>
         <div><p className="text-3xl font-semibold tracking-tight">{leadsLast7Days}</p><p className="mt-1 text-sm text-[#788179]">za 7 dní</p></div>
         <div><p className="text-3xl font-semibold tracking-tight">{campaignsWithLeads}</p><p className="mt-1 text-sm text-[#788179]">kampane so záujemcami</p></div>
-        <div><p className="text-3xl font-semibold tracking-tight">{averageLeads.toLocaleString("sk-SK", { maximumFractionDigits: 1 })}</p><p className="mt-1 text-sm text-[#788179]">priemer / aktívna</p></div>
+        <div><p className="text-3xl font-semibold tracking-tight">{averageLeads.toLocaleString("sk-SK", { maximumFractionDigits: 1 })}</p><p className="mt-1 text-sm text-[#788179]">priemerne na aktívnu kampaň</p></div>
         <div>
           <p className="text-3xl font-semibold tracking-tight">{topCampaign?._count.leads ?? 0}</p>
-          <p className="mt-1 truncate text-sm text-[#788179]">najviac · {topCampaign?.name ?? "—"}</p>
+          <p className="mt-1 truncate text-sm text-[#788179]">najviac záujemcov · {topCampaign?.name ?? "—"}</p>
         </div>
       </section>
 
       <section className="mt-12">
         <div className="flex items-end justify-between gap-5">
           <div>
-            <h2 className="text-lg font-semibold">Výkon kampaní</h2>
-            <p className="mt-1 text-sm text-[#7c857e]">Podiel na všetkých získaných záujemcoch.</p>
+            <h2 className="text-lg font-semibold">Záujemcovia podľa kampane</h2>
+            <p className="mt-1 text-sm text-[#7c857e]">Podiel na celkovom počte záujemcov.</p>
           </div>
-          <span className="hidden text-xs text-[#8a928c] sm:block">Celkový počet: {leadCount}</span>
+          <span className="hidden text-xs text-[#8a928c] sm:block">Spolu: {leadCount}</span>
         </div>
         <div className="mt-5 border-t border-[var(--line)]">
           {campaignsByPerformance.map((campaign) => {
@@ -98,7 +98,7 @@ export default async function DashboardPage({
               </div>
             );
           })}
-          {campaignsByPerformance.length === 0 && <p className="py-10 text-sm text-[#788179]">Výkon sa zobrazí po vytvorení prvej kampane.</p>}
+          {campaignsByPerformance.length === 0 && <p className="py-10 text-sm text-[#788179]">Po vytvorení kampane tu uvidíte počet získaných záujemcov.</p>}
         </div>
       </section>
 
@@ -107,13 +107,13 @@ export default async function DashboardPage({
       <section id="kampane" className="mt-14 scroll-mt-8">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Všetky kampane</h2>
-          <span className="text-xs text-[#8a928c]">Verejné URL sú pripravené pre reklamy</span>
+          <span className="text-xs text-[#8a928c]">Odkazy na stránky kampaní môžete použiť v reklamách</span>
         </div>
         <div className="mt-5 overflow-x-auto">
           <table className="admin-table w-full border-collapse text-left text-sm">
             <thead className="text-xs uppercase tracking-[.08em] text-[#8a928c]">
               <tr className="border-b border-[var(--line)]">
-                <th className="py-3 font-medium">Kampaň</th><th className="py-3 font-medium">Stav</th><th className="py-3 font-medium">Verejná URL</th><th className="py-3 text-right font-medium">Záujemcovia</th><th className="w-10" />
+                <th className="py-3 font-medium">Kampaň</th><th className="py-3 font-medium">Stav</th><th className="py-3 font-medium">Stránka kampane</th><th className="py-3 text-right font-medium">Záujemcovia</th><th className="w-10" />
               </tr>
             </thead>
             <tbody>
@@ -129,13 +129,21 @@ export default async function DashboardPage({
                       {campaign.isActive ? "Aktívna" : "Neaktívna"}
                     </span>
                   </td>
-                  <td className="py-4" data-label="URL">
-                    <Link href={`/kampan/${campaign.slug}`} target="_blank" className="inline-flex items-center gap-1 text-[#5f6a62] hover:text-[var(--ink)]">
-                      /kampan/{campaign.slug}<ArrowUpRight size={13} />
+                  <td className="py-4" data-label="Stránka kampane">
+                    <Link
+                      href={`/kampan/${campaign.slug}`}
+                      target="_blank"
+                      aria-label={`Otvoriť verejnú stránku kampane ${campaign.name}`}
+                      className="group inline-flex flex-col items-start gap-1"
+                    >
+                      <span className="inline-flex items-center gap-1 font-semibold text-[var(--ink)] group-hover:underline">
+                        Otvoriť kampaň <ArrowUpRight size={13} />
+                      </span>
+                      <span className="text-xs text-[#879088]">/kampan/{campaign.slug}</span>
                     </Link>
                   </td>
                   <td className="py-4 text-right font-semibold" data-label="Záujemcovia">{campaign._count.leads}</td>
-                  <td className="py-4 pl-4 text-right"><Link href={`/admin/kampane/${campaign.id}`} aria-label={`Upraviť ${campaign.name}`} className="text-[#8b938d] hover:text-[var(--ink)]">→</Link></td>
+                  <td className="py-4 pl-4 text-right"><Link href={`/admin/kampane/${campaign.id}`} aria-label={`Upraviť kampaň ${campaign.name}`} className="text-[#8b938d] hover:text-[var(--ink)]">→</Link></td>
                 </tr>
               ))}
             </tbody>
@@ -157,7 +165,7 @@ export default async function DashboardPage({
               <span className="text-xs text-[#929a94]">{formatDate(lead.createdAt)}</span>
             </Link>
           ))}
-          {recentLeads.length === 0 && <div className="flex items-center gap-2 py-9 text-sm text-[#788179]"><Users size={16} /> Prví záujemcovia sa zobrazia tu.</div>}
+          {recentLeads.length === 0 && <div className="flex items-center gap-2 py-9 text-sm text-[#788179]"><Users size={16} /> Keď niekto odošle formulár, zobrazí sa tu.</div>}
         </div>
       </section>
     </>

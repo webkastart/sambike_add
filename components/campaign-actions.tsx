@@ -28,13 +28,13 @@ export function CampaignActions({
         type="button"
         disabled={pending}
         onClick={() => {
-          if (window.confirm("Naozaj chcete kampaň vymazať? Vymažú sa aj všetci jej záujemcovia.")) {
+          if (window.confirm("Odstrániť kampaň? Spolu s ňou odstránite aj všetkých jej záujemcov.")) {
             startTransition(() => deleteAction());
           }
         }}
         className="inline-flex items-center gap-2 text-sm font-medium text-[#a14d49] hover:text-[#7d2e2a] disabled:opacity-50"
       >
-        <Trash2 size={15} /> Vymazať kampaň
+        <Trash2 size={15} /> Odstrániť kampaň
       </button>
     </div>
   );

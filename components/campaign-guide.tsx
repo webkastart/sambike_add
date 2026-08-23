@@ -14,42 +14,42 @@ type Props = {
 };
 
 const flow = [
-  { number: "01", label: "Reklama", detail: "Facebook / Instagram" },
-  { number: "02", label: "Landing page", detail: "Verejná URL kampane" },
-  { number: "03", label: "Formulár", detail: "Kontakt a súhlas" },
-  { number: "04", label: "Záujemca", detail: "Administrácia + e-mail" },
+  { number: "01", label: "Reklama", detail: "Facebook a Instagram" },
+  { number: "02", label: "Stránka kampane", detail: "Verejný odkaz" },
+  { number: "03", label: "Formulár", detail: "Údaje a súhlas" },
+  { number: "04", label: "Záujemca", detail: "Administrácia a e-mail" },
 ];
 
 const guideItems = [
   {
     icon: ImageIcon,
     title: "Ako fungujú obrázky",
-    text: "Každá kampaň má jednu hlavnú fotografiu. Zobrazuje sa v úvode landing page aj pri ponuke a podľa obrazovky sa automaticky oreže. Najlepšie funguje čistá široká fotografia s rozmerom aspoň 1 600 px bez dôležitého textu pri okrajoch.",
+    text: "Hlavná fotografia sa zobrazuje v úvode stránky aj pri ponuke. Použite široký záber s rozlíšením aspoň 1 600 px a bez dôležitého textu pri okrajoch, pretože fotografia sa môže podľa obrazovky orezať.",
   },
   {
     icon: Megaphone,
     title: "Facebook a Instagram",
-    text: "Reklama sa vytvára v Meta Ads Manageri. Ako cieľový odkaz sa do nej vloží verejná URL kampane, ktorú možno použiť pre Facebook aj Instagram. Táto aplikácia reklamy sama nepublikuje ani nemení ich rozpočet.",
+    text: "Reklamu vytvorte v Meta Ads Manageri a ako cieľ zadajte verejný odkaz kampane. Rovnaký odkaz funguje na Facebooku aj Instagrame. Publikovanie a rozpočet sa spravujú priamo v Meta Ads Manageri.",
   },
   {
     icon: BarChart3,
-    title: "Priemerný dosah (reach)",
-    text: "Dosah nie je pevné číslo — ovplyvňuje ho rozpočet, publikum, obdobie aj kvalita reklamy. Meta pred spustením ukáže odhad a po spustení reálny reach. Táto administrácia počíta získané kontakty, nie impresie ani dosah.",
+    title: "Dosah reklamy",
+    text: "Dosah závisí od rozpočtu, publika, obdobia a kvality reklamy. Meta pred spustením ukáže odhad a neskôr skutočné výsledky. V administrácii uvidíte počet získaných záujemcov, nie dosah ani počet zobrazení.",
   },
   {
     icon: Link2,
     title: "Prepojenie kampane",
-    text: "Každá kampaň má vlastný odkaz /kampan/nazov. Ak sa k odkazu pridajú UTM parametre, pri záujemcovi sa uloží zdroj, názov kampane aj konkrétna reklama. Vďaka tomu je jasné, odkiaľ kontakt prišiel.",
+    text: "Každá kampaň má vlastný odkaz /kampan/nazov. Ak k nemu pridáte UTM parametre, pri záujemcovi sa uloží zdroj, názov kampane aj konkrétna reklama, z ktorej prišiel.",
   },
   {
     icon: FileCheck2,
     title: "Formulár",
-    text: "Záujemca vyplní meno, telefón, voliteľný e-mail a poznámku a potvrdí súhlas. Po odoslaní sa kontakt ihneď uloží medzi Záujemcov. Ak je nastavený Meta Pixel, odošle sa aj udalosť Lead.",
+    text: "Záujemca vyplní meno, telefón, voliteľný e-mail a poznámku a potvrdí súhlas. Po odoslaní formulára sa ihneď uloží do administrácie. Ak je nastavený Meta Pixel, odošle sa aj udalosť Lead.",
   },
   {
     icon: Mail,
     title: "E-mailové upozornenie",
-    text: "Po každom platnom formulári systém odošle notifikáciu s kontaktom a odkazom na detail. Ak záujemca zadal e-mail, stačí na správu odpovedať. Kontakt zostane bezpečne uložený aj v prípade, že sa e-mail nepodarí doručiť.",
+    text: "Po odoslaní formulára príde e-mail s údajmi záujemcu a odkazom na detail. Ak záujemca uviedol e-mail, môžete na správu rovno odpovedať. Záujemca zostane uložený aj vtedy, keď sa upozornenie nepodarí doručiť.",
   },
 ];
 
@@ -63,7 +63,7 @@ export function CampaignGuide({ metaPixelConfigured, emailConfigured }: Props) {
             Od reklamy k novému záujemcovi
           </h2>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-[#737c75]">
-            Kampaň spojí reklamu na sociálnych sieťach s vlastnou stránkou, formulárom a upozornením pre SAMBIKE.
+            Reklama odkáže na stránku kampane. Odtiaľ sa vyplnený formulár uloží do administrácie a odošle e-mailové upozornenie.
           </p>
         </div>
 

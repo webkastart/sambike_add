@@ -46,7 +46,7 @@ export function LeadForm({ campaignId, campaignSlug, offerType }: Props) {
     return (
       <div className="py-10 text-center" role="status">
         <CheckCircle2 className="mx-auto text-[#4d6537]" size={38} strokeWidth={1.6} />
-        <h3 className="mt-5 text-2xl font-semibold">Máme váš kontakt</h3>
+        <h3 className="mt-5 text-2xl font-semibold">Požiadavku sme prijali</h3>
         <p className="mx-auto mt-2 max-w-sm text-[#677169]">{state.message}</p>
       </div>
     );
@@ -82,8 +82,8 @@ export function LeadForm({ campaignId, campaignSlug, offerType }: Props) {
         <input className="landing-field" name="email" type="email" placeholder="meno@email.sk" autoComplete="email" />
       </label>
       <label>
-        <span className="block text-xs font-semibold uppercase tracking-[.1em] text-[#747d76]">Poznámka / termín <span className="normal-case tracking-normal text-[#929a94]">– voliteľná</span></span>
-        <input className="landing-field" name="note" placeholder="Termín, počet bicyklov…" />
+        <span className="block text-xs font-semibold uppercase tracking-[.1em] text-[#747d76]">Termín alebo poznámka <span className="normal-case tracking-normal text-[#929a94]">– voliteľné</span></span>
+        <input className="landing-field" name="note" placeholder="Napr. termín a počet bicyklov" />
       </label>
       <label className="flex items-start gap-3 text-sm leading-relaxed text-[#657067] sm:col-span-2">
         <input className="mt-1 size-4 shrink-0 accent-[#26372a]" type="checkbox" name="consent" required />
@@ -93,7 +93,7 @@ export function LeadForm({ campaignId, campaignSlug, offerType }: Props) {
       <div className="sm:col-span-2">
         <button className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-[var(--accent-dark)] px-6 py-3 font-semibold text-white transition hover:bg-[#314336] disabled:opacity-60 sm:w-auto" type="submit" disabled={pending}>
           {pending && <LoaderCircle size={17} className="animate-spin" />}
-          {pending ? "Odosielam…" : "Overiť dostupnosť"}
+          {pending ? "Odosiela sa…" : "Odoslať požiadavku"}
           {!pending && <ArrowRight size={17} />}
         </button>
         <p className="mt-3 text-xs text-[#788179]">Bez platby vopred. Ozveme sa a dohodneme detaily.</p>

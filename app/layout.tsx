@@ -11,11 +11,11 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     metadataBase,
     title: { default: "SAMBIKE kampane", template: "%s · SAMBIKE" },
-    description: "Správa reklamných kampaní a landing pages pre SAMBIKE.",
+    description: "Správa reklamných kampaní, ich stránok a záujemcov pre SAMBIKE.",
     icons: { icon: "/favicon.svg" },
     openGraph: {
       title: "SAMBIKE kampane",
-      description: "Kampane, ktoré dostanú ľudí na bicykel.",
+      description: "Reklamné kampane a ponuky SAMBIKE.",
       images: ["/og.png"],
     },
     twitter: { card: "summary_large_image", images: ["/og.png"] },

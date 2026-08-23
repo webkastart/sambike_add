@@ -19,9 +19,9 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   return (
     <>
       <header>
-        <p className="text-xs font-semibold uppercase tracking-[.16em] text-[#7c867e]">Kontakty z reklám</p>
+        <p className="text-xs font-semibold uppercase tracking-[.16em] text-[#7c867e]">Odoslané formuláre</p>
         <h1 className="mt-2 text-3xl font-semibold tracking-[-.035em] sm:text-4xl">Záujemcovia</h1>
-        <p className="mt-2 text-sm text-[#737c75]">Všetky odoslané formuláre, automaticky priradené ku kampani.</p>
+        <p className="mt-2 text-sm text-[#737c75]">Tu nájdete záujemcov zo všetkých kampaní.</p>
       </header>
 
       <form className="mt-9 flex flex-wrap items-center gap-3" method="get">
@@ -38,21 +38,25 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
       <div className="mt-7 overflow-x-auto">
         <table className="admin-table w-full border-collapse text-left text-sm">
           <thead className="text-xs uppercase tracking-[.08em] text-[#8a928c]">
-            <tr className="border-b border-[var(--line)]"><th className="py-3 font-medium">Kontakt</th><th className="py-3 font-medium">Kampaň</th><th className="py-3 font-medium">Typ záujmu</th><th className="py-3 text-right font-medium">Dátum</th><th className="w-10" /></tr>
+            <tr className="border-b border-[var(--line)]"><th className="py-3 font-medium">Záujemca</th><th className="py-3 font-medium">Kampaň</th><th className="py-3 font-medium">Ponuka</th><th className="py-3 text-right font-medium">Dátum</th><th className="w-10" /></tr>
           </thead>
           <tbody>
             {leads.map((lead) => (
               <tr key={lead.id} className="border-b border-[var(--line)] transition hover:bg-[#f5f7f4]">
                 <td className="py-4 pr-4"><Link className="font-semibold hover:underline" href={`/admin/leady/${lead.id}`}>{lead.name}</Link><p className="mt-1 text-xs text-[#8a928c]">{lead.phone}</p></td>
                 <td className="py-4 pr-4" data-label="Kampaň">{lead.campaign.name}</td>
-                <td className="py-4 pr-4 text-[#667168]" data-label="Záujem">{lead.interestType}</td>
+                <td className="py-4 pr-4 text-[#667168]" data-label="Ponuka">{lead.interestType}</td>
                 <td className="py-4 text-right text-xs text-[#8a928c]" data-label="Dátum">{formatDate(lead.createdAt)}</td>
                 <td className="py-4 pl-4 text-right"><Link href={`/admin/leady/${lead.id}`} aria-label={`Detail záujemcu ${lead.name}`}>→</Link></td>
               </tr>
             ))}
           </tbody>
         </table>
-        {leads.length === 0 && <p className="py-14 text-center text-sm text-[#788179]">Pre zvolený filter nie sú žiadni záujemcovia.</p>}
+        {leads.length === 0 && (
+          <p className="py-14 text-center text-sm text-[#788179]">
+            {kampan ? "V tejto kampani zatiaľ nie sú žiadni záujemcovia." : "Zatiaľ tu nie sú žiadni záujemcovia."}
+          </p>
+        )}
       </div>
     </>
   );

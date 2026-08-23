@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { ArrowRight, Check, ExternalLink, Mail, MapPin, Phone, Play } from "lucide-react";
+import { ArrowRight, AtSign, Check, ExternalLink, Link as LinkIcon, Mail, MapPin, Phone, Play } from "lucide-react";
 import { CampaignTracking } from "@/components/campaign-tracking";
 import { LeadForm } from "@/components/lead-form";
 import { MobileStickyCta } from "@/components/mobile-sticky-cta";
@@ -18,26 +18,28 @@ type Props = { params: Promise<{ slug: string }> };
 
 const facebookReelUrl = "https://www.facebook.com/reel/1362919532718299";
 const facebookEmbedUrl = `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(facebookReelUrl)}&show_text=false&width=500`;
+const facebookProfileUrl = "https://www.facebook.com/samo.chlebovec";
+const instagramProfileUrl = "https://www.instagram.com/sambike_snv/";
 
 const benefits = [
-  "Bicykel pripravíme presne na vás",
-  "Poradíme trasu podľa skúseností",
-  "Rýchla rezervácia bez platby vopred",
+  "Rýchlo overíme dostupnosť alebo termín",
+  "Vopred si dohodneme všetky podrobnosti",
+  "Za odoslanie formulára nič neplatíte",
 ];
 
 const servicePhotos = [
   { src: serviceBikePhoto, alt: "Horský bicykel pripravený na servisnom stojane", caption: "Kontrola pred každou jazdou." },
-  { src: chainPhoto, alt: "Porovnanie znečistenej a vyčistenej bicyklovej reťaze", caption: "Čistý pohon a pozornosť k detailu." },
-  { src: wheelServicePhoto, alt: "Servis náboja bicyklového kolesa v dielni", caption: "Nastavenie, na ktoré sa môžete spoľahnúť." },
+  { src: chainPhoto, alt: "Porovnanie znečistenej a vyčistenej bicyklovej reťaze", caption: "Pohon vyčistíme a skontrolujeme.", position: "top" },
+  { src: wheelServicePhoto, alt: "Servis náboja bicyklového kolesa v dielni", caption: "Skontrolujeme aj náboje a kolesá." },
 ];
 
 const faq = [
-  { question: "Musím platiť vopred?", answer: "Nie. Odošlete nezáväznú požiadavku a detaily si potvrdíme spolu." },
-  { question: "Ako si overím dostupnosť bicykla?", answer: "Vyplňte krátky formulár alebo nám zavolajte. Ozveme sa s potvrdením dostupnosti." },
-  { question: "Akú veľkosť bicykla potrebujem?", answer: "Do poznámky môžete uviesť svoju výšku. Bicykel pred jazdou nastavíme na jazdca." },
-  { question: "Kde bicykel prevezmem?", answer: "Miesto prevzatia v Slovenskom raji si potvrdíme pri dohodnutí detailov." },
-  { question: "Čo ak bude zlé počasie?", answer: "Ozvite sa nám telefonicky. Ďalší postup dohodneme individuálne podľa vášho termínu." },
-  { question: "Môžeme rezervovať viac bicyklov naraz?", answer: "Áno. Počet bicyklov uveďte do poznámky a pri potvrdení overíme ich dostupnosť." },
+  { question: "Musím platiť vopred?", answer: "Nie. Formulár je nezáväzný a platbu dohodneme až po potvrdení vašej požiadavky." },
+  { question: "Kedy sa mi ozvete?", answer: "Ozveme sa čo najskôr na telefónne číslo, ktoré uvediete vo formulári." },
+  { question: "Čo mám uviesť do poznámky?", answer: "Napíšte nám želaný termín, počet bicyklov a všetko, čo by sme mali vedieť." },
+  { question: "Kde vás nájdem?", answer: "Nájdete nás v Slovenskom raji. Presné miesto a čas si potvrdíme, keď sa vám ozveme." },
+  { question: "Môžem si vybrať termín?", answer: "Áno. Uveďte ho do poznámky a pri potvrdení spolu overíme dostupnosť." },
+  { question: "Môžem poslať požiadavku pre viac bicyklov?", answer: "Áno. Počet bicyklov uveďte do poznámky a ich dostupnosť overíme pri potvrdení." },
 ];
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -97,8 +99,8 @@ export default async function CampaignLandingPage({ params }: Props) {
 
       <section className="mx-auto grid max-w-7xl gap-9 px-5 py-14 sm:px-8 lg:grid-cols-[.9fr_1.1fr] lg:items-end lg:px-12 lg:py-18">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[.18em] text-[#71805c]">Jednoducho a bez starostí</p>
-          <h2 className="mt-3 text-3xl font-semibold tracking-[-.04em] sm:text-5xl">Viac času na jazdu.<br />Menej riešenia.</h2>
+          <p className="text-xs font-bold uppercase tracking-[.18em] text-[#71805c]">Ako to prebieha</p>
+          <h2 className="mt-3 text-3xl font-semibold tracking-[-.04em] sm:text-5xl">Stačí nám napísať.<br />Podrobnosti dohodneme spolu.</h2>
         </div>
         <ul className="grid gap-3 sm:grid-cols-3" aria-label="Výhody SAMBIKE">
           {benefits.map((benefit) => (
@@ -114,11 +116,13 @@ export default async function CampaignLandingPage({ params }: Props) {
           <div className="mx-auto grid max-w-7xl gap-8 px-5 py-14 sm:px-8 lg:grid-cols-[.72fr_1.28fr] lg:gap-16 lg:px-12 lg:py-18">
             <div>
               <p className="text-xs font-bold uppercase tracking-[.18em] text-[#71805c]">Nezáväzná požiadavka</p>
-              <h2 className="mt-3 text-4xl font-semibold tracking-[-.045em]">Overíme dostupnosť</h2>
-              <p className="mt-4 max-w-sm leading-relaxed text-[#657067]">Stačí meno a telefón. Ozveme sa, overíme dostupnosť a dohodneme detaily.</p>
+              <h2 className="mt-3 text-4xl font-semibold tracking-[-.045em]">Dohodnime si podrobnosti</h2>
+              <p className="mt-4 max-w-sm leading-relaxed text-[#657067]">Stačí meno a telefón. Ozveme sa, overíme dostupnosť alebo termín a dohodneme ďalší postup.</p>
               <div className="mt-7 space-y-3 text-sm">
                 <a href={telHref(campaign.phone)} data-track="phone" className="flex items-center gap-3 hover:underline"><Phone size={16} />{campaign.phone}</a>
                 <a href={`mailto:${campaign.email}`} className="flex items-center gap-3 hover:underline"><Mail size={16} />{campaign.email}</a>
+                <a href={instagramProfileUrl} target="_blank" rel="noreferrer" className="flex items-center gap-3 hover:underline"><AtSign size={16} />Instagram</a>
+                <a href={facebookProfileUrl} target="_blank" rel="noreferrer" className="flex items-center gap-3 hover:underline"><LinkIcon size={16} />Facebook</a>
                 <p className="flex items-center gap-3 text-[#657067]"><MapPin size={16} />Slovenský raj, Slovensko</p>
               </div>
             </div>
@@ -136,7 +140,7 @@ export default async function CampaignLandingPage({ params }: Props) {
           <h2 className="mt-3 text-4xl font-semibold tracking-[-.045em] sm:text-5xl">{campaign.name}</h2>
           <p className="mt-5 max-w-xl text-lg leading-relaxed text-[#5e6961]">{campaign.description}</p>
           <div className="mt-7 flex items-baseline gap-3 border-t border-[#dce3dc] pt-5">
-            <span className="text-xs font-bold uppercase tracking-[.14em] text-[#7d887f]">Cena / akcia</span>
+            <span className="text-xs font-bold uppercase tracking-[.14em] text-[#7d887f]">Cena a podmienky</span>
             <strong className="text-xl text-[#26372a]">{campaign.priceText}</strong>
           </div>
           <a href={primaryHref} data-track="cta" className="mt-7 inline-flex items-center gap-2 font-semibold text-[#26372a] underline decoration-[#a6bb57] decoration-2 underline-offset-4">{campaign.ctaText} <ArrowRight size={16} /></a>
@@ -146,14 +150,22 @@ export default async function CampaignLandingPage({ params }: Props) {
       <section className="mx-auto max-w-7xl px-5 pb-16 sm:px-8 lg:px-12 lg:pb-24">
         <div className="border-t border-[#dce3dc] pt-12">
           <p className="text-xs font-bold uppercase tracking-[.18em] text-[#71805c]">Príprava pred jazdou</p>
-          <h2 className="mt-3 max-w-4xl text-3xl font-semibold tracking-[-.04em] sm:text-5xl">Bicykel dostanete pripravený, nie iba požičaný.</h2>
-          <p className="mt-4 text-sm text-[#657067]">Kontrola <span aria-hidden="true">•</span> čistý pohon <span aria-hidden="true">•</span> správny tlak <span aria-hidden="true">•</span> nastavenie na jazdca</p>
+          <h2 className="mt-3 max-w-4xl text-3xl font-semibold tracking-[-.04em] sm:text-5xl">Pred jazdou bicykel dôkladne skontrolujeme.</h2>
+          <p className="mt-4 text-sm text-[#657067]">Kontrola <span aria-hidden="true">•</span> čistý pohon <span aria-hidden="true">•</span> správny tlak <span aria-hidden="true">•</span> nastavenie podľa jazdca</p>
         </div>
         <div className="mt-8 grid gap-5 sm:grid-cols-3">
           {servicePhotos.map((photo) => (
             <figure key={photo.src.src}>
               <div className="relative aspect-[4/3] overflow-hidden bg-[#e9ede7]">
-                <Image src={photo.src} alt={photo.alt} fill placeholder="blur" sizes="(max-width: 640px) 100vw, 33vw" className="object-cover transition duration-700 hover:scale-[1.015]" />
+                <Image
+                  src={photo.src}
+                  alt={photo.alt}
+                  fill
+                  placeholder="blur"
+                  sizes="(max-width: 640px) 100vw, 33vw"
+                  className="object-cover transition duration-700 hover:scale-[1.015]"
+                  style={{ objectPosition: photo.position ?? "center" }}
+                />
               </div>
               <figcaption className="mt-2 text-xs text-[#7e8880]">{photo.caption}</figcaption>
             </figure>
@@ -164,10 +176,10 @@ export default async function CampaignLandingPage({ params }: Props) {
       <section className="bg-[#142219] text-white">
         <div className="mx-auto grid max-w-7xl items-center gap-12 px-5 py-16 sm:px-8 lg:grid-cols-[1fr_380px] lg:px-12 lg:py-24">
           <div className="max-w-xl">
-            <p className="text-xs font-bold uppercase tracking-[.18em] text-[var(--accent)]">Pozrite si nás v akcii</p>
-            <h2 className="mt-3 text-4xl font-semibold tracking-[-.045em] sm:text-6xl">Servis nie je len práca. Je to remeslo.</h2>
-            <p className="mt-5 text-lg leading-relaxed text-white/68">Reálne bicykle, reálna dielňa a práca s dôrazom na každý detail.</p>
-            <a href={facebookReelUrl} target="_blank" rel="noreferrer" className="mt-7 inline-flex items-center gap-2 border-b border-white/35 pb-1 text-sm font-semibold transition hover:border-white"><Play size={16} fill="currentColor" /> Pozrieť Reel na Facebooku <ExternalLink size={14} /></a>
+            <p className="text-xs font-bold uppercase tracking-[.18em] text-[var(--accent)]">Zo servisu</p>
+            <h2 className="mt-3 text-4xl font-semibold tracking-[-.045em] sm:text-6xl">Pozrite si, ako pracujeme.</h2>
+            <p className="mt-5 text-lg leading-relaxed text-white/68">Krátke video priamo z našej dielne.</p>
+            <a href={facebookReelUrl} target="_blank" rel="noreferrer" className="mt-7 inline-flex items-center gap-2 border-b border-white/35 pb-1 text-sm font-semibold transition hover:border-white"><Play size={16} fill="currentColor" /> Pozrieť video na Facebooku <ExternalLink size={14} /></a>
           </div>
           <div className="mx-auto w-full max-w-[380px] overflow-hidden bg-black">
             <iframe src={facebookEmbedUrl} title="SAMBIKE video z Facebooku" width="500" height="750" loading="lazy" allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share" allowFullScreen className="aspect-[9/16] h-auto w-full" />
@@ -192,7 +204,7 @@ export default async function CampaignLandingPage({ params }: Props) {
 
       <section data-final-cta className="bg-[var(--accent)] px-5 py-14 sm:px-8 lg:px-12 lg:py-18">
         <div className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-7 sm:flex-row sm:items-center">
-          <div><p className="text-xs font-bold uppercase tracking-[.18em] text-[#53632d]">Bez platby vopred</p><h2 className="mt-2 text-3xl font-semibold tracking-[-.04em] sm:text-5xl">Overte si dostupnosť.</h2></div>
+          <div><p className="text-xs font-bold uppercase tracking-[.18em] text-[#53632d]">Bez platby vopred</p><h2 className="mt-2 text-3xl font-semibold tracking-[-.04em] sm:text-5xl">Pošlite nám nezáväznú požiadavku.</h2></div>
           <div className="flex flex-wrap items-center gap-5">
             <a href={primaryHref} data-track="cta" className="inline-flex min-h-12 items-center gap-2 rounded-lg bg-[#17231b] px-6 py-3 font-semibold text-white">{campaign.ctaText} <ArrowRight size={17} /></a>
             <a href={telHref(campaign.phone)} data-track="phone" className="inline-flex items-center gap-2 font-semibold text-[#17231b]"><Phone size={17} /> Zavolať</a>

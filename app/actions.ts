@@ -36,11 +36,11 @@ function hasRequiredCampaignData(data: ReturnType<typeof campaignInput>) {
 export async function createCampaign(formData: FormData) {
   const data = campaignInput(formData);
   if (!hasRequiredCampaignData(data)) {
-    redirect("/admin/kampane/nova?error=Vyplňte+všetky+povinné+polia");
+    redirect("/admin/kampane/nova?error=Vyplňte+všetky+povinné+polia.");
   }
   const existing = await prisma.campaign.findUnique({ where: { slug: data.slug } });
   if (existing) {
-    redirect("/admin/kampane/nova?error=Táto+URL+sa+už+používa");
+    redirect("/admin/kampane/nova?error=Táto+adresa+stránky+sa+už+používa.");
   }
   await prisma.campaign.create({ data });
   revalidatePath("/admin");
@@ -50,13 +50,13 @@ export async function createCampaign(formData: FormData) {
 export async function updateCampaign(id: string, formData: FormData) {
   const data = campaignInput(formData);
   if (!hasRequiredCampaignData(data)) {
-    redirect(`/admin/kampane/${id}?error=Vyplňte+všetky+povinné+polia`);
+    redirect(`/admin/kampane/${id}?error=Vyplňte+všetky+povinné+polia.`);
   }
   const existing = await prisma.campaign.findFirst({
     where: { slug: data.slug, NOT: { id } },
   });
   if (existing) {
-    redirect(`/admin/kampane/${id}?error=Táto+URL+sa+už+používa`);
+    redirect(`/admin/kampane/${id}?error=Táto+adresa+stránky+sa+už+používa.`);
   }
   await prisma.campaign.update({ where: { id }, data });
   revalidatePath("/admin");
@@ -98,12 +98,12 @@ export async function createLead(
   const consent = formData.get("consent") === "on";
 
   if (!campaignId || !name || !phone || !consent) {
-    return { success: false, message: "Skontrolujte povinné polia a súhlas." };
+    return { success: false, message: "Vyplňte meno a telefón a potvrďte súhlas so spracovaním údajov." };
   }
 
   const campaign = await prisma.campaign.findUnique({ where: { id: campaignId } });
   if (!campaign?.isActive || !campaign.formEnabled) {
-    return { success: false, message: "Formulár už nie je dostupný." };
+    return { success: false, message: "Formulár už nie je dostupný. Ozvite sa nám telefonicky alebo e-mailom." };
   }
 
   const lead = await prisma.lead.create({
@@ -144,5 +144,5 @@ export async function createLead(
 
   revalidatePath("/admin");
   revalidatePath("/admin/leady");
-  return { success: true, message: "Ďakujeme. Ozveme sa vám čo najskôr." };
+  return { success: true, message: "Ďakujeme, čoskoro sa vám ozveme." };
 }

@@ -31,7 +31,7 @@ export default async function EditCampaignPage({
           <p className="text-xs font-semibold uppercase tracking-[.16em] text-[#7c867e]">Úprava kampane</p>
           <h1 className="mt-2 text-3xl font-semibold tracking-[-.035em] sm:text-4xl">{campaign.name}</h1>
         </div>
-        <Link href={`/kampan/${campaign.slug}`} target="_blank" className="inline-flex w-fit items-center gap-1.5 text-sm font-medium text-[#59655c] hover:text-[var(--ink)]">Otvoriť landing page <ArrowUpRight size={15} /></Link>
+        <Link href={`/kampan/${campaign.slug}`} target="_blank" className="inline-flex w-fit items-center gap-1.5 text-sm font-medium text-[#59655c] hover:text-[var(--ink)]">Otvoriť stránku kampane <ArrowUpRight size={15} /></Link>
       </header>
       {query.error && <p className="mt-7 text-sm font-medium text-[#a1433e]">{query.error}</p>}
       {query.saved && <p className="mt-7 text-sm font-medium text-[#4e6a37]">Zmeny boli uložené.</p>}

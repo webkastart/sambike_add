@@ -17,10 +17,10 @@ type CampaignField = {
 
 const fields: CampaignField[] = [
   { name: "name", label: "Názov kampane", placeholder: "Požičovňa e-bikov", required: true },
-  { name: "slug", label: "Slug / verejná URL", placeholder: "pozicovna", required: true },
-  { name: "headline", label: "Hlavný nadpis", placeholder: "Objav Slovenský raj na dvoch kolesách", required: true },
-  { name: "priceText", label: "Cena alebo cenový text", placeholder: "od 29 € / deň", required: true },
-  { name: "ctaText", label: "Text CTA tlačidla", placeholder: "Rezervovať bicykel", required: true },
+  { name: "slug", label: "Adresa stránky", placeholder: "pozicovna", required: true },
+  { name: "headline", label: "Hlavný nadpis", placeholder: "Objavte Slovenský raj na dvoch kolesách", required: true },
+  { name: "priceText", label: "Cena alebo podmienky", placeholder: "od 29 € / deň", required: true },
+  { name: "ctaText", label: "Text hlavného tlačidla", placeholder: "Rezervovať bicykel", required: true },
   { name: "offerType", label: "Typ ponuky", placeholder: "Požičovňa", required: true },
   { name: "phone", label: "Telefón", placeholder: "+421 905 123 456", required: true },
   { name: "email", label: "E-mail", placeholder: "ahoj@sambike.sk", required: true, type: "email" },
@@ -50,7 +50,7 @@ export function CampaignForm({ campaign, action, submitLabel }: Props) {
             className="admin-field"
             name="description"
             defaultValue={campaign?.description ?? ""}
-            placeholder="Stručne vysvetlite ponuku a jej hlavný benefit."
+            placeholder="Stručne opíšte ponuku a jej hlavné výhody."
             required
           />
         </label>
@@ -59,7 +59,7 @@ export function CampaignForm({ campaign, action, submitLabel }: Props) {
       <div className="mt-10 flex flex-wrap gap-x-8 gap-y-4 border-t border-[var(--line)] pt-7">
         <label className="flex cursor-pointer items-center gap-3 text-sm">
           <input className="size-4 accent-[#26372a]" type="checkbox" name="formEnabled" defaultChecked={campaign?.formEnabled ?? true} />
-          Zobraziť formulár „Mám záujem“
+          Zobraziť formulár pre záujemcov
         </label>
         <label className="flex cursor-pointer items-center gap-3 text-sm">
           <input className="size-4 accent-[#26372a]" type="checkbox" name="isActive" defaultChecked={campaign?.isActive ?? true} />
@@ -71,7 +71,7 @@ export function CampaignForm({ campaign, action, submitLabel }: Props) {
         <button className="rounded-lg bg-[var(--accent-dark)] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#314336]" type="submit">
           {submitLabel}
         </button>
-        <span className="text-xs text-[#89918b]">Slug sa automaticky upraví do URL formátu.</span>
+        <span className="text-xs text-[#89918b]">Diakritiku a medzery v adrese upravíme automaticky.</span>
       </div>
     </form>
   );

@@ -83,10 +83,10 @@ export async function sendLeadNotification(lead: LeadNotification) {
     ? `<tr><td style="padding:7px 0;color:#6b746d;font-size:14px;width:130px">E-mail</td><td style="padding:7px 0;font-size:15px"><a href="mailto:${safe.email}" style="color:#26372a">${safe.email}</a></td></tr>`
     : "";
   const noteSection = safe.note
-    ? `<div style="margin-top:28px"><p style="margin:0 0 8px;color:#6b746d;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.08em">Poznámka klienta</p><p style="margin:0;color:#273029;font-size:15px;line-height:1.65">${safe.note}</p></div>`
+    ? `<div style="margin-top:28px"><p style="margin:0 0 8px;color:#6b746d;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.08em">Poznámka záujemcu</p><p style="margin:0;color:#273029;font-size:15px;line-height:1.65">${safe.note}</p></div>`
     : "";
   const adminButton = safe.adminUrl
-    ? `<a href="${safe.adminUrl}" style="display:inline-block;margin-top:30px;padding:12px 18px;background:#26372a;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;border-radius:7px">Otvoriť detail požiadavky</a>`
+    ? `<a href="${safe.adminUrl}" style="display:inline-block;margin-top:30px;padding:12px 18px;background:#26372a;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;border-radius:7px">Otvoriť detail záujemcu</a>`
     : "";
 
   const html = `<!doctype html>
@@ -94,7 +94,7 @@ export async function sendLeadNotification(lead: LeadNotification) {
   <body style="margin:0;background:#f4f6f3;font-family:Arial,sans-serif;color:#1f2821">
     <div style="padding:32px 16px">
       <div style="max-width:620px;margin:0 auto;background:#ffffff;padding:36px">
-        <p style="margin:0;color:#6f7b71;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase">SAMBIKE · nový záujem</p>
+        <p style="margin:0;color:#6f7b71;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase">SAMBIKE · nový záujemca</p>
         <h1 style="margin:12px 0 8px;font-size:28px;line-height:1.2">${safe.name}</h1>
         <p style="margin:0;color:#657067;font-size:15px">${safe.interestType} · ${safe.campaignName}</p>
 
@@ -114,16 +114,16 @@ export async function sendLeadNotification(lead: LeadNotification) {
 </html>`;
 
   const text = [
-    "SAMBIKE – nový záujem",
+    "SAMBIKE – nový záujemca",
     "",
     `Meno: ${lead.name}`,
     `Telefón: ${lead.phone}`,
     lead.email ? `E-mail: ${lead.email}` : null,
-    `Typ záujmu: ${lead.interestType}`,
+    `Ponuka: ${lead.interestType}`,
     `Kampaň: ${lead.campaignName} /${lead.campaignSlug}`,
     `Prijaté: ${receivedAt}`,
     lead.note ? `\nPoznámka:\n${lead.note}` : null,
-    adminUrl ? `\nDetail požiadavky: ${adminUrl}` : null,
+    adminUrl ? `\nDetail záujemcu: ${adminUrl}` : null,
   ]
     .filter(Boolean)
     .join("\n");
@@ -133,7 +133,7 @@ export async function sendLeadNotification(lead: LeadNotification) {
       from,
       to,
       replyTo: isEmail(lead.email) ? lead.email : undefined,
-      subject: cleanSubject(`Nový záujem: ${lead.interestType} – ${lead.name}`),
+      subject: cleanSubject(`Nový záujemca: ${lead.interestType} – ${lead.name}`),
       html,
       text,
       tags: [{ name: "category", value: "new_lead" }],
