@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { slugify } from "@/lib/format";
 import { sendLeadNotification } from "@/lib/email";
+import { getConfiguredNotificationEmails } from "@/lib/notification-recipients";
 import {
   CampaignImageError,
   hasCampaignImageUpload,
@@ -14,6 +15,24 @@ import {
 
 function text(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
+}
+
+export async function updateLeadNotificationRecipients(formData: FormData) {
+  const configuredEmails = getConfiguredNotificationEmails();
+  const requestedEmails = new Set(
+    formData.getAll("recipient").map((value) => String(value).trim().toLowerCase()),
+  );
+
+  await prisma.$transaction(
+    configuredEmails.map((email) => prisma.leadNotificationRecipient.upsert({
+      where: { email },
+      create: { email, enabled: requestedEmails.has(email) },
+      update: { enabled: requestedEmails.has(email) },
+    })),
+  );
+
+  revalidatePath("/admin/nastavenia");
+  redirect("/admin/nastavenia?saved=1");
 }
 
 const campaignImageFields = [

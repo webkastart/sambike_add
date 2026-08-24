@@ -1,8 +1,7 @@
 import "server-only";
 
 import { Resend } from "resend";
-
-const DEFAULT_NOTIFICATION_EMAIL = "sambike.snv@gmail.com";
+import { getActiveNotificationEmails } from "@/lib/notification-recipients";
 
 type LeadNotification = {
   leadId: string;
@@ -36,23 +35,6 @@ function isEmail(value: string | null): value is string {
   return Boolean(value && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value));
 }
 
-function getNotificationEmails() {
-  const configuredEmails = process.env.LEAD_NOTIFICATION_EMAILS
-    ?? process.env.LEAD_NOTIFICATION_EMAIL
-    ?? DEFAULT_NOTIFICATION_EMAIL;
-  const emails = configuredEmails
-    .split(/[,;\n]/)
-    .map((email) => email.trim())
-    .filter(Boolean);
-  const invalidEmails = emails.filter((email) => !isEmail(email));
-
-  if (invalidEmails.length > 0) {
-    console.warn(`Neplatné adresy v LEAD_NOTIFICATION_EMAILS sa preskočili: ${invalidEmails.join(", ")}`);
-  }
-
-  return [...new Set(emails.filter((email) => isEmail(email)))];
-}
-
 function getAdminLeadUrl(leadId: string) {
   const appUrl = process.env.APP_URL?.trim();
   if (!appUrl) return null;
@@ -68,7 +50,7 @@ function getAdminLeadUrl(leadId: string) {
 export async function sendLeadNotification(lead: LeadNotification) {
   const apiKey = process.env.RESEND_API_KEY?.trim();
   const from = process.env.RESEND_FROM_EMAIL?.trim();
-  const to = getNotificationEmails();
+  const to = await getActiveNotificationEmails();
 
   if (!apiKey || !from || to.length === 0) {
     console.warn(

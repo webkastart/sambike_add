@@ -55,3 +55,9 @@ model Lead {
   @@index([campaignId, createdAt])
   @@index([createdAt])
 }
+
+model LeadNotificationRecipient {
+  email     String   @id
+  enabled   Boolean  @default(true)
+  updatedAt DateTime @updatedAt
+}

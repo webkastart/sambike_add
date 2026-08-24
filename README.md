@@ -45,8 +45,8 @@ NEXT_PUBLIC_META_PIXEL_ID="123456789012345"
 ```
 
 Adresy v `LEAD_NOTIFICATION_EMAILS` oddeľte čiarkou. Notifikácia príde na každú
-uvedenú adresu. Ak ju na niektorú adresu dočasne nechcete posielať, odstráňte ju
-zo zoznamu a reštartujte alebo znovu nasaďte aplikáciu. Pôvodná premenná
+aktívnu adresu. Po nasadení sa jednotliví príjemcovia zapínajú a vypínajú v
+`Administrácia → Nastavenia`, bez ďalšej zmeny env premenných. Pôvodná premenná
 `LEAD_NOTIFICATION_EMAIL` s jednou adresou zostáva podporovaná.
 
 Pre prvý test môžete ako odosielateľa použiť
