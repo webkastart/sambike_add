@@ -46,6 +46,7 @@ RESEND_FROM_EMAIL="SAMBIKE <leady@send.sambike.sk>"
 LEAD_NOTIFICATION_EMAILS="sambike.snv@gmail.com,vas.email@example.com"
 APP_URL="https://vasa-domena.sk"
 NEXT_PUBLIC_META_PIXEL_ID="123456789012345"
+ADMIN_PASSWORD="dlhe-jedinecne-heslo"
 ```
 
 Adresy v `LEAD_NOTIFICATION_EMAILS` oddeľte čiarkou. Notifikácia príde na každú
@@ -62,6 +63,44 @@ zobrazené SPF a DKIM záznamy do DNS a počkajte na stav `Verified`. Potom pou�
 
 `NEXT_PUBLIC_META_PIXEL_ID` je voliteľné. Ak zostane prázdne, landing page funguje
 bez Meta Pixelu; interné udalosti a UTM atribúcia sa naďalej zachytávajú.
+
+## Facebook a Instagram reklamy
+
+Administrácia vie pri každej internej kampani vytvoriť kompletnú Meta reklamu,
+nastaviť Facebook/Instagram, denný rozpočet, lokálny okruh, vek a termín. Nová
+reklama sa vždy vytvorí ako pozastavená. Samostatné tlačidlo ju následne spustí,
+pozastaví alebo načíta aktuálne výdavky, zobrazenia, kliknutia a Meta leady.
+
+Prvá verzia je určená pre jeden SAMBIKE Business a reklamný účet. V Meta Business
+Manageri vytvorte systémového používateľa, prideľte mu reklamný účet a stránku a
+vygenerujte serverový token s oprávnením `ads_management`. V hostingu nastavte:
+
+```bash
+META_ACCESS_TOKEN="serverovy-token"
+META_APP_SECRET="app-secret"
+META_AD_ACCOUNT_ID="act_123456789012345"
+META_PAGE_ID="123456789012345"
+META_INSTAGRAM_ACTOR_ID="123456789012345"
+META_API_VERSION="v25.0"
+META_DEFAULT_LATITUDE="48.9446"
+META_DEFAULT_LONGITUDE="20.5615"
+```
+
+`META_INSTAGRAM_ACTOR_ID` je voliteľné; bez neho zostáva dostupný Facebook.
+`META_APP_SECRET` je tiež voliteľný, ale odporúčaný, pretože serverové volania
+podpisuje pomocou `appsecret_proof`. `APP_URL` musí byť verejná HTTPS adresa –
+Meta potrebuje načítať landing page aj obrázok reklamy. Po nastavení použite
+`Administrácia → Nastavenia → Meta reklamy → Overiť spojenie s Meta`.
+
+Token, app secret ani heslo nikdy nepoužívajú prefix `NEXT_PUBLIC_` a neposielajú
+sa do prehliadača.
+
+## Ochrana administrácie
+
+V produkcii je `ADMIN_PASSWORD` povinné. Relácia je uložená v podpísanej,
+`HttpOnly` a `SameSite=Lax` cookie s platnosťou 12 hodín. Voliteľné
+`ADMIN_SESSION_SECRET` môže oddeliť podpis relácie od prihlasovacieho hesla.
+Lokálny development zostáva bez hesla, pokiaľ `ADMIN_PASSWORD` nenastavíte.
 
 ## Demo dáta
 
@@ -92,6 +131,8 @@ npm run db:studio
 - dashboard s počtom záujemcov a stavom kampaní
 - zoznam, filtrovanie a detail záujemcov
 - samostatné fotografie pre úvod, ponuku a tri pozície v galérii; každá sa dá nahrať alebo nastaviť URL adresou
+- vytvorenie, spustenie, pozastavenie a synchronizácia Facebook/Instagram reklamy cez Meta Marketing API
+- ochrana administrácie heslom v produkcii
 
 ## Štruktúra
 
@@ -116,4 +157,9 @@ public/                        # statické aktíva
 
 ## Hranice MVP
 
-Administrácia zámerne nemá autentifikáciu. Nahrané obrázky sa ukladajú lokálne do `storage/campaign-images`, preto treba pri nasadení na serverless hosting použiť trvalé objektové úložisko. Pred nasadením na verejný server treba doplniť prihlásenie, ochranu formulára proti spamu, produkčnú databázu a pravidlá uchovávania osobných údajov.
+Nahrané obrázky sa ukladajú lokálne do `storage/campaign-images`, preto treba pri
+nasadení na serverless hosting použiť trvalé objektové úložisko. Jedno spoločné
+admin heslo je vhodné pre malý interný tím; pri viacerých firmách alebo rolách ho
+treba nahradiť používateľskými účtami. Pred verejným nasadením treba doplniť aj
+ochranu formulára proti spamu, produkčnú databázu a pravidlá uchovávania osobných
+údajov.

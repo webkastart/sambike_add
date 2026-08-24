@@ -6,6 +6,8 @@ import { prisma } from "@/lib/prisma";
 import { slugify } from "@/lib/format";
 import { sendLeadConfirmation, sendLeadNotification } from "@/lib/email";
 import { getConfiguredNotificationEmails } from "@/lib/notification-recipients";
+import { requireAdmin } from "@/lib/admin-auth";
+import { deleteRemoteMetaAd, setRemoteMetaAdStatus } from "@/lib/meta-ads";
 import {
   CampaignImageError,
   hasCampaignImageUpload,
@@ -18,6 +20,7 @@ function text(formData: FormData, key: string) {
 }
 
 export async function updateLeadNotificationRecipients(formData: FormData) {
+  await requireAdmin();
   const configuredEmails = getConfiguredNotificationEmails();
   const requestedEmails = new Set(
     formData.getAll("recipient").map((value) => String(value).trim().toLowerCase()),
@@ -114,6 +117,7 @@ function campaignImageData(
 }
 
 export async function createCampaign(formData: FormData) {
+  await requireAdmin();
   const data = campaignInput(formData);
   const hasImage = hasCampaignImageUpload(formData.get("imageFile"));
   if (!hasRequiredCampaignData(data, hasImage)) {
@@ -137,8 +141,15 @@ export async function createCampaign(formData: FormData) {
 }
 
 export async function updateCampaign(id: string, formData: FormData) {
+  await requireAdmin();
   const data = campaignInput(formData);
-  const currentCampaign = await prisma.campaign.findUniqueOrThrow({ where: { id } });
+  const currentCampaign = await prisma.campaign.findUniqueOrThrow({
+    where: { id },
+    include: { metaAd: true },
+  });
+  if (currentCampaign.metaAd?.metaCampaignId && data.slug !== currentCampaign.slug) {
+    redirect(`/admin/kampane/${id}?error=Adresu+stránky+nie+je+možné+zmeniť,+kým+je+na+ňu+napojená+Meta+reklama.`);
+  }
   const hasImage = hasCampaignImageUpload(formData.get("imageFile"));
   if (!hasRequiredCampaignData(data, hasImage || Boolean(currentCampaign.imageUrl))) {
     redirect(`/admin/kampane/${id}?error=Vyplňte+všetky+povinné+polia.`);
@@ -176,7 +187,28 @@ export async function updateCampaign(id: string, formData: FormData) {
 }
 
 export async function toggleCampaign(id: string) {
-  const campaign = await prisma.campaign.findUniqueOrThrow({ where: { id } });
+  await requireAdmin();
+  const campaign = await prisma.campaign.findUniqueOrThrow({
+    where: { id },
+    include: { metaAd: true },
+  });
+  if (
+    campaign.isActive
+    && campaign.metaAd?.metaCampaignId
+    && campaign.metaAd.metaAdSetId
+    && campaign.metaAd.metaAdId
+    && campaign.metaAd.status === "ACTIVE"
+  ) {
+    await setRemoteMetaAdStatus({
+      campaignId: campaign.metaAd.metaCampaignId,
+      adSetId: campaign.metaAd.metaAdSetId,
+      adId: campaign.metaAd.metaAdId,
+    }, "PAUSED");
+    await prisma.metaAdCampaign.update({
+      where: { id: campaign.metaAd.id },
+      data: { status: "PAUSED", effectiveStatus: "PAUSED" },
+    });
+  }
   await prisma.campaign.update({
     where: { id },
     data: { isActive: !campaign.isActive },
@@ -186,6 +218,9 @@ export async function toggleCampaign(id: string) {
 }
 
 export async function deleteCampaign(id: string) {
+  await requireAdmin();
+  const metaAd = await prisma.metaAdCampaign.findUnique({ where: { campaignId: id } });
+  if (metaAd?.metaCampaignId) await deleteRemoteMetaAd(metaAd.metaCampaignId);
   const campaign = await prisma.campaign.delete({ where: { id } });
   try {
     await removeCampaignImages(campaignImageFields.map((field) => campaign[field.url]));

@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 
 type Props = {
+  metaAdsConfigured: boolean;
   metaPixelConfigured: boolean;
   emailConfigured: boolean;
 };
@@ -29,17 +30,17 @@ const guideItems = [
   {
     icon: Megaphone,
     title: "Facebook a Instagram",
-    text: "Reklamu vytvorte v Meta Ads Manageri a ako cieľ zadajte verejný odkaz kampane. Rovnaký odkaz funguje na Facebooku aj Instagrame. Publikovanie a rozpočet sa spravujú priamo v Meta Ads Manageri.",
+    text: "V detaile kampane nastavíte Facebook, Instagram, publikum, termín aj denný rozpočet. Reklama sa najprv bezpečne vytvorí ako pozastavená a spustíte ju samostatným tlačidlom.",
   },
   {
     icon: BarChart3,
     title: "Dosah reklamy",
-    text: "Dosah závisí od rozpočtu, publika, obdobia a kvality reklamy. Meta pred spustením ukáže odhad a neskôr skutočné výsledky. V administrácii uvidíte počet získaných záujemcov, nie dosah ani počet zobrazení.",
+    text: "Po spustení môžete pri kampani načítať minutý rozpočet, zobrazenia, kliknutia a Meta leady a porovnať ich s kontaktmi uloženými v administrácii.",
   },
   {
     icon: Link2,
     title: "Prepojenie kampane",
-    text: "Každá kampaň má vlastný odkaz /kampan/nazov. Ak k nemu pridáte UTM parametre, pri záujemcovi sa uloží zdroj, názov kampane aj konkrétna reklama, z ktorej prišiel.",
+    text: "Každá reklama automaticky používa verejný odkaz svojej kampane a dostane UTM parametre. Pri záujemcovi sa tak uloží zdroj aj názov kampane.",
   },
   {
     icon: FileCheck2,
@@ -53,7 +54,7 @@ const guideItems = [
   },
 ];
 
-export function CampaignGuide({ metaPixelConfigured, emailConfigured }: Props) {
+export function CampaignGuide({ metaAdsConfigured, metaPixelConfigured, emailConfigured }: Props) {
   return (
     <section className="mt-14 border-y border-[var(--line)] py-11" aria-labelledby="campaign-guide-title">
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,.58fr)] lg:items-end">
@@ -67,7 +68,12 @@ export function CampaignGuide({ metaPixelConfigured, emailConfigured }: Props) {
           </p>
         </div>
 
-        <dl className="grid gap-2 text-xs text-[#68736a] sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+        <dl className="grid gap-2 text-xs text-[#68736a] sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
+          <div className="flex items-center gap-2">
+            <span className={`size-1.5 shrink-0 rounded-full ${metaAdsConfigured ? "bg-[#7da33e]" : "bg-[#c59b45]"}`} />
+            <dt className="sr-only">Meta reklamy</dt>
+            <dd>Meta reklamy {metaAdsConfigured ? "sú pripojené" : "treba pripojiť"}</dd>
+          </div>
           <div className="flex items-center gap-2">
             <span className={`size-1.5 shrink-0 rounded-full ${metaPixelConfigured ? "bg-[#7da33e]" : "bg-[#c59b45]"}`} />
             <dt className="sr-only">Meta Pixel</dt>

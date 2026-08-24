@@ -28,8 +28,42 @@ model Campaign {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
   leads            Lead[]
+  metaAd            MetaAdCampaign?
 
   @@index([isActive])
+}
+
+model MetaAdCampaign {
+  id                  String    @id @default(cuid())
+  campaignId          String    @unique
+  metaCampaignId      String?   @unique
+  metaAdSetId         String?   @unique
+  metaCreativeId      String?   @unique
+  metaAdId            String?   @unique
+  status              String    @default("DRAFT")
+  effectiveStatus     String?
+  platforms           String
+  dailyBudgetCents    Int
+  radiusKm            Int
+  minAge              Int
+  maxAge              Int
+  primaryText         String
+  adHeadline          String
+  adDescription       String?
+  destinationUrl      String
+  startsAt            DateTime?
+  endsAt              DateTime?
+  spendCents          Int       @default(0)
+  impressions         Int       @default(0)
+  clicks              Int       @default(0)
+  metaLeads           Int       @default(0)
+  lastSyncedAt        DateTime?
+  lastError           String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  campaign            Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([status])
 }
 
 model Lead {

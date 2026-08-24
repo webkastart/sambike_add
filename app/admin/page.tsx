@@ -5,6 +5,7 @@ import { CampaignDeleteButton } from "@/components/campaign-delete-button";
 import { CampaignGuide } from "@/components/campaign-guide";
 import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/format";
+import { getMetaConnectionSummary } from "@/lib/meta-ads";
 
 export const dynamic = "force-dynamic";
 
@@ -104,7 +105,11 @@ export default async function DashboardPage({
         </div>
       </section>
 
-      <CampaignGuide metaPixelConfigured={metaPixelConfigured} emailConfigured={emailConfigured} />
+      <CampaignGuide
+        metaAdsConfigured={getMetaConnectionSummary().configured}
+        metaPixelConfigured={metaPixelConfigured}
+        emailConfigured={emailConfigured}
+      />
 
       <section id="kampane" className="mt-14 scroll-mt-8">
         <div className="flex items-center justify-between">
