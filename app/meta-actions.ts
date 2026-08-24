@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireAdmin } from "@/lib/admin-auth";
 import {
   createRemoteMetaAd,
   deleteRemoteMetaAd,
@@ -86,7 +85,6 @@ function campaignPath(campaignId: string, query: Record<string, string>) {
 }
 
 export async function verifyMetaConnectionAction() {
-  await requireAdmin();
   try {
     await verifyMetaConnection();
   } catch (error) {
@@ -96,7 +94,6 @@ export async function verifyMetaConnectionAction() {
 }
 
 export async function createMetaAd(campaignId: string, formData: FormData) {
-  await requireAdmin();
   let localAdId = "";
 
   try {
@@ -188,7 +185,6 @@ function remoteIds(ad: {
 }
 
 export async function setMetaAdStatus(campaignId: string, status: "ACTIVE" | "PAUSED") {
-  await requireAdmin();
   try {
     const ad = await prisma.metaAdCampaign.findUniqueOrThrow({
       where: { campaignId },
@@ -212,7 +208,6 @@ export async function setMetaAdStatus(campaignId: string, status: "ACTIVE" | "PA
 }
 
 export async function syncMetaAd(campaignId: string) {
-  await requireAdmin();
   try {
     const ad = await prisma.metaAdCampaign.findUniqueOrThrow({ where: { campaignId } });
     if (!ad.metaCampaignId) throw new MetaAdsError("Meta kampaň ešte nebola vytvorená.");
@@ -231,7 +226,6 @@ export async function syncMetaAd(campaignId: string) {
 }
 
 export async function deleteMetaAd(campaignId: string) {
-  await requireAdmin();
   try {
     const ad = await prisma.metaAdCampaign.findUniqueOrThrow({ where: { campaignId } });
     if (ad.metaCampaignId) await deleteRemoteMetaAd(ad.metaCampaignId);

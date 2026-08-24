@@ -46,7 +46,6 @@ RESEND_FROM_EMAIL="SAMBIKE <leady@send.sambike.sk>"
 LEAD_NOTIFICATION_EMAILS="sambike.snv@gmail.com,vas.email@example.com"
 APP_URL="https://vasa-domena.sk"
 NEXT_PUBLIC_META_PIXEL_ID="123456789012345"
-ADMIN_PASSWORD="dlhe-jedinecne-heslo"
 ```
 
 Adresy v `LEAD_NOTIFICATION_EMAILS` oddeľte čiarkou. Notifikácia príde na každú
@@ -92,15 +91,8 @@ podpisuje pomocou `appsecret_proof`. `APP_URL` musí byť verejná HTTPS adresa 
 Meta potrebuje načítať landing page aj obrázok reklamy. Po nastavení použite
 `Administrácia → Nastavenia → Meta reklamy → Overiť spojenie s Meta`.
 
-Token, app secret ani heslo nikdy nepoužívajú prefix `NEXT_PUBLIC_` a neposielajú
+Token ani app secret nikdy nepoužívajú prefix `NEXT_PUBLIC_` a neposielajú
 sa do prehliadača.
-
-## Ochrana administrácie
-
-V produkcii je `ADMIN_PASSWORD` povinné. Relácia je uložená v podpísanej,
-`HttpOnly` a `SameSite=Lax` cookie s platnosťou 12 hodín. Voliteľné
-`ADMIN_SESSION_SECRET` môže oddeliť podpis relácie od prihlasovacieho hesla.
-Lokálny development zostáva bez hesla, pokiaľ `ADMIN_PASSWORD` nenastavíte.
 
 ## Demo dáta
 

@@ -6,7 +6,6 @@ import { prisma } from "@/lib/prisma";
 import { slugify } from "@/lib/format";
 import { sendLeadConfirmation, sendLeadNotification } from "@/lib/email";
 import { getConfiguredNotificationEmails } from "@/lib/notification-recipients";
-import { requireAdmin } from "@/lib/admin-auth";
 import { deleteRemoteMetaAd, setRemoteMetaAdStatus } from "@/lib/meta-ads";
 import {
   CampaignImageError,
@@ -20,7 +19,6 @@ function text(formData: FormData, key: string) {
 }
 
 export async function updateLeadNotificationRecipients(formData: FormData) {
-  await requireAdmin();
   const configuredEmails = getConfiguredNotificationEmails();
   const requestedEmails = new Set(
     formData.getAll("recipient").map((value) => String(value).trim().toLowerCase()),
@@ -117,7 +115,6 @@ function campaignImageData(
 }
 
 export async function createCampaign(formData: FormData) {
-  await requireAdmin();
   const data = campaignInput(formData);
   const hasImage = hasCampaignImageUpload(formData.get("imageFile"));
   if (!hasRequiredCampaignData(data, hasImage)) {
@@ -141,7 +138,6 @@ export async function createCampaign(formData: FormData) {
 }
 
 export async function updateCampaign(id: string, formData: FormData) {
-  await requireAdmin();
   const data = campaignInput(formData);
   const currentCampaign = await prisma.campaign.findUniqueOrThrow({
     where: { id },
@@ -187,7 +183,6 @@ export async function updateCampaign(id: string, formData: FormData) {
 }
 
 export async function toggleCampaign(id: string) {
-  await requireAdmin();
   const campaign = await prisma.campaign.findUniqueOrThrow({
     where: { id },
     include: { metaAd: true },
@@ -218,7 +213,6 @@ export async function toggleCampaign(id: string) {
 }
 
 export async function deleteCampaign(id: string) {
-  await requireAdmin();
   const metaAd = await prisma.metaAdCampaign.findUnique({ where: { campaignId: id } });
   if (metaAd?.metaCampaignId) await deleteRemoteMetaAd(metaAd.metaCampaignId);
   const campaign = await prisma.campaign.delete({ where: { id } });
