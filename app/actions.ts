@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { slugify } from "@/lib/format";
-import { sendLeadNotification } from "@/lib/email";
+import { sendLeadConfirmation, sendLeadNotification } from "@/lib/email";
 import { getConfiguredNotificationEmails } from "@/lib/notification-recipients";
 import {
   CampaignImageError,
@@ -242,23 +242,41 @@ export async function createLead(
     },
   });
 
-  try {
-    await sendLeadNotification({
-      leadId: lead.id,
-      name: lead.name,
-      phone: lead.phone,
-      email: lead.email,
-      interestType: lead.interestType,
-      note: lead.note,
-      campaignName: campaign.name,
-      campaignSlug: campaign.slug,
-      createdAt: lead.createdAt,
-    });
-  } catch (error) {
-    console.error(`Notifikáciu pre lead ${lead.id} sa nepodarilo odoslať:`, error);
+  const emailData = {
+    leadId: lead.id,
+    name: lead.name,
+    phone: lead.phone,
+    email: lead.email,
+    interestType: lead.interestType,
+    note: lead.note,
+    campaignName: campaign.name,
+    campaignSlug: campaign.slug,
+    createdAt: lead.createdAt,
+  };
+  const [adminNotification, customerConfirmation] = await Promise.allSettled([
+    sendLeadNotification(emailData),
+    sendLeadConfirmation({
+      ...emailData,
+      campaignEmail: campaign.email,
+      campaignPhone: campaign.phone,
+    }),
+  ]);
+
+  if (adminNotification.status === "rejected") {
+    console.error(`Admin notifikáciu pre lead ${lead.id} sa nepodarilo odoslať:`, adminNotification.reason);
   }
+  if (customerConfirmation.status === "rejected") {
+    console.error(`Potvrdenie pre lead ${lead.id} sa nepodarilo odoslať:`, customerConfirmation.reason);
+  }
+
+  const confirmationSent = customerConfirmation.status === "fulfilled" && customerConfirmation.value.sent;
 
   revalidatePath("/admin");
   revalidatePath("/admin/leady");
-  return { success: true, message: "Ďakujeme, čoskoro sa vám ozveme." };
+  return {
+    success: true,
+    message: confirmationSent
+      ? "Potvrdenie sme poslali na zadaný e-mail. Čoskoro sa vám ozveme."
+      : "Ďakujeme, čoskoro sa vám ozveme.",
+  };
 }

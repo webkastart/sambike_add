@@ -34,6 +34,10 @@ Po odoslaní formulára sa požiadavka najprv uloží do databázy a následne s
 nastavené admin adresy odošle e-mailová notifikácia. Ak Resend dočasne zlyhá,
 kontakt zostane bezpečne uložený v administrácii.
 
+Ak záujemca vo formulári uvedie e-mail, dostane naň samostatné potvrdenie s
+rekapituláciou požiadavky. Toto potvrdenie sa posiela nezávisle od zapnutých
+admin príjemcov.
+
 Do lokálneho `.env` a do environment premenných hostingu nastavte:
 
 ```bash

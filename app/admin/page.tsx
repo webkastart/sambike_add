@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { ArrowUpRight, Plus, Users } from "lucide-react";
+import { deleteCampaign } from "@/app/actions";
+import { CampaignDeleteButton } from "@/components/campaign-delete-button";
 import { CampaignGuide } from "@/components/campaign-guide";
 import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/format";
@@ -113,12 +115,12 @@ export default async function DashboardPage({
           <table className="admin-table w-full border-collapse text-left text-sm">
             <thead className="text-xs uppercase tracking-[.08em] text-[#8a928c]">
               <tr className="border-b border-[var(--line)]">
-                <th className="py-3 font-medium">Kampaň</th><th className="py-3 font-medium">Stav</th><th className="py-3 font-medium">Stránka kampane</th><th className="py-3 text-right font-medium">Záujemcovia</th><th className="w-10" />
+                <th className="py-3 font-medium">Kampaň</th><th className="py-3 font-medium">Stav</th><th className="py-3 font-medium">Stránka kampane</th><th className="py-3 text-right font-medium">Záujemcovia</th><th className="w-20" />
               </tr>
             </thead>
             <tbody>
               {campaigns.map((campaign) => (
-                <tr key={campaign.id} className="border-b border-[var(--line)] transition hover:bg-[#f5f7f4]">
+                <tr key={campaign.id} className="group border-b border-[var(--line)] transition hover:bg-[#f5f7f4]">
                   <td className="py-4 pr-5">
                     <Link href={`/admin/kampane/${campaign.id}`} className="font-semibold hover:underline">{campaign.name}</Link>
                     <p className="mt-1 text-xs text-[#8a928c]">{campaign.offerType}</p>
@@ -143,7 +145,22 @@ export default async function DashboardPage({
                     </Link>
                   </td>
                   <td className="py-4 text-right font-semibold" data-label="Záujemcovia">{campaign._count.leads}</td>
-                  <td className="py-4 pl-4 text-right"><Link href={`/admin/kampane/${campaign.id}`} aria-label={`Upraviť kampaň ${campaign.name}`} className="text-[#8b938d] hover:text-[var(--ink)]">→</Link></td>
+                  <td className="py-4 pl-4">
+                    <div className="flex items-center justify-end gap-1">
+                      <CampaignDeleteButton
+                        campaignName={campaign.name}
+                        leadCount={campaign._count.leads}
+                        deleteAction={deleteCampaign.bind(null, campaign.id)}
+                      />
+                      <Link
+                        href={`/admin/kampane/${campaign.id}`}
+                        aria-label={`Upraviť kampaň ${campaign.name}`}
+                        className="inline-flex size-8 items-center justify-center text-[#8b938d] hover:text-[var(--ink)]"
+                      >
+                        →
+                      </Link>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>

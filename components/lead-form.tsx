@@ -80,6 +80,7 @@ export function LeadForm({ campaignId, campaignSlug, offerType }: Props) {
       <label>
         <span className="block text-xs font-semibold uppercase tracking-[.1em] text-[#747d76]">E-mail <span className="normal-case tracking-normal text-[#929a94]">– voliteľný</span></span>
         <input className="landing-field" name="email" type="email" placeholder="meno@email.sk" autoComplete="email" />
+        <span className="mt-1.5 block text-xs text-[#8a938c]">Pošleme sem potvrdenie požiadavky.</span>
       </label>
       <label>
         <span className="block text-xs font-semibold uppercase tracking-[.1em] text-[#747d76]">Termín alebo poznámka <span className="normal-case tracking-normal text-[#929a94]">– voliteľné</span></span>

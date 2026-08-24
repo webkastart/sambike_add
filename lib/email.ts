@@ -15,6 +15,11 @@ type LeadNotification = {
   createdAt: Date;
 };
 
+type LeadConfirmation = LeadNotification & {
+  campaignEmail: string;
+  campaignPhone: string;
+};
+
 function escapeHtml(value: string) {
   return value.replace(/[&<>"]/g, (character) => {
     const entities: Record<string, string> = {
@@ -142,6 +147,96 @@ export async function sendLeadNotification(lead: LeadNotification) {
 
   if (error) {
     console.error(`Resend neodoslal e-mail pre lead ${lead.leadId}:`, error);
+    return { sent: false as const, reason: "provider_error" as const };
+  }
+
+  return { sent: true as const, emailId: data.id };
+}
+
+export async function sendLeadConfirmation(lead: LeadConfirmation) {
+  const apiKey = process.env.RESEND_API_KEY?.trim();
+  const from = process.env.RESEND_FROM_EMAIL?.trim();
+
+  if (!isEmail(lead.email)) {
+    return { sent: false as const, reason: "missing_recipient" as const };
+  }
+
+  if (!apiKey || !from) {
+    console.warn(`Potvrdenie pre lead ${lead.leadId} sa neodoslalo: chýba konfigurácia Resend.`);
+    return { sent: false as const, reason: "not_configured" as const };
+  }
+
+  const resend = new Resend(apiKey);
+  const receivedAt = new Intl.DateTimeFormat("sk-SK", {
+    dateStyle: "long",
+    timeStyle: "short",
+    timeZone: "Europe/Bratislava",
+  }).format(lead.createdAt);
+  const safe = {
+    name: escapeHtml(lead.name),
+    phone: escapeHtml(lead.phone),
+    interestType: escapeHtml(lead.interestType),
+    note: lead.note ? escapeHtml(lead.note).replace(/\n/g, "<br>") : null,
+    campaignName: escapeHtml(lead.campaignName),
+    campaignEmail: escapeHtml(lead.campaignEmail),
+    campaignPhone: escapeHtml(lead.campaignPhone),
+    receivedAt: escapeHtml(receivedAt),
+  };
+  const noteSection = safe.note
+    ? `<div style="margin-top:26px"><p style="margin:0 0 7px;color:#6b746d;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.08em">Vaša poznámka</p><p style="margin:0;color:#273029;font-size:15px;line-height:1.65">${safe.note}</p></div>`
+    : "";
+  const html = `<!doctype html>
+<html lang="sk">
+  <body style="margin:0;background:#f4f6f3;font-family:Arial,sans-serif;color:#1f2821">
+    <div style="padding:32px 16px">
+      <div style="max-width:620px;margin:0 auto;background:#ffffff;padding:36px">
+        <p style="margin:0;color:#6f7b71;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase">SAMBIKE · potvrdenie požiadavky</p>
+        <h1 style="margin:12px 0 10px;font-size:28px;line-height:1.2">Ďakujeme, ${safe.name}</h1>
+        <p style="margin:0;color:#657067;font-size:15px;line-height:1.65">Vašu požiadavku sme prijali. Ozveme sa vám a dohodneme ďalší postup.</p>
+
+        <table role="presentation" style="width:100%;margin-top:28px;border-collapse:collapse;border-top:1px solid #e3e7e2;border-bottom:1px solid #e3e7e2">
+          <tr><td style="padding:16px 0 7px;color:#6b746d;font-size:14px;width:130px">Požiadavka</td><td style="padding:16px 0 7px;font-size:15px;font-weight:600">${safe.interestType}</td></tr>
+          <tr><td style="padding:7px 0;color:#6b746d;font-size:14px">Kampaň</td><td style="padding:7px 0;font-size:15px">${safe.campaignName}</td></tr>
+          <tr><td style="padding:7px 0;color:#6b746d;font-size:14px">Telefón</td><td style="padding:7px 0;font-size:15px">${safe.phone}</td></tr>
+          <tr><td style="padding:7px 0 16px;color:#6b746d;font-size:14px">Prijaté</td><td style="padding:7px 0 16px;font-size:15px">${safe.receivedAt}</td></tr>
+        </table>
+
+        ${noteSection}
+        <p style="margin:30px 0 0;color:#657067;font-size:14px;line-height:1.6">Potrebujete niečo doplniť? Odpovedzte na tento e-mail, napíšte na <a href="mailto:${safe.campaignEmail}" style="color:#26372a">${safe.campaignEmail}</a> alebo zavolajte na ${safe.campaignPhone}.</p>
+      </div>
+    </div>
+  </body>
+</html>`;
+  const text = [
+    `Ďakujeme, ${lead.name}.`,
+    "Vašu požiadavku sme prijali. Ozveme sa vám a dohodneme ďalší postup.",
+    "",
+    `Požiadavka: ${lead.interestType}`,
+    `Kampaň: ${lead.campaignName}`,
+    `Telefón: ${lead.phone}`,
+    `Prijaté: ${receivedAt}`,
+    lead.note ? `Poznámka: ${lead.note}` : null,
+    "",
+    `Kontakt: ${lead.campaignEmail}, ${lead.campaignPhone}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const { data, error } = await resend.emails.send(
+    {
+      from,
+      to: lead.email,
+      replyTo: isEmail(lead.campaignEmail) ? lead.campaignEmail : undefined,
+      subject: cleanSubject(`Prijali sme vašu požiadavku – ${lead.campaignName}`),
+      html,
+      text,
+      tags: [{ name: "category", value: "lead_confirmation" }],
+    },
+    { idempotencyKey: `lead-confirmation-${lead.leadId}` },
+  );
+
+  if (error) {
+    console.error(`Resend neodoslal potvrdenie pre lead ${lead.leadId}:`, error);
     return { sent: false as const, reason: "provider_error" as const };
   }
 
