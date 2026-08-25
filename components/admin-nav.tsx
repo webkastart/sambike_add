@@ -27,7 +27,7 @@ export function AdminNav() {
             key={`${item.label}-${index}`}
             href={item.href}
             className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition ${
-              active ? "bg-[#edf1ed] font-semibold text-[var(--ink)]" : "text-[#69736b] hover:text-[var(--ink)]"
+              active ? "bg-[#eef6fd] font-semibold text-[var(--accent)]" : "text-[#6f6d6d] hover:text-[var(--ink)]"
             }`}
           >
             <Icon size={16} strokeWidth={1.8} />

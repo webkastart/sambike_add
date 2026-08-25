@@ -1,7 +1,19 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { ArrowRight, AtSign, Check, ExternalLink, Link as LinkIcon, Mail, MapPin, Phone, Play } from "lucide-react";
+import {
+  ArrowRight,
+  AtSign,
+  Clock3,
+  ExternalLink,
+  Link as LinkIcon,
+  Mail,
+  MapPin,
+  Phone,
+  Play,
+  ShieldCheck,
+  Wrench,
+} from "lucide-react";
 import { CampaignTracking } from "@/components/campaign-tracking";
 import { LeadForm } from "@/components/lead-form";
 import { MobileStickyCta } from "@/components/mobile-sticky-cta";
@@ -22,18 +34,18 @@ const facebookProfileUrl = "https://www.facebook.com/samo.chlebovec";
 const instagramProfileUrl = "https://www.instagram.com/sambike_snv/";
 
 const benefits = [
-  "Rýchlo overíme dostupnosť alebo termín",
-  "Vopred si dohodneme všetky podrobnosti",
-  "Za odoslanie formulára nič neplatíte",
+  { icon: Clock3, title: "Rýchla dohoda", text: "Termín a dostupnosť overíme čo najskôr." },
+  { icon: Wrench, title: "Osobný prístup", text: "Všetky práce a podrobnosti si vopred odsúhlasíme." },
+  { icon: ShieldCheck, title: "Bez záväzku", text: "Za odoslanie požiadavky nič neplatíte." },
 ];
 
 const faq = [
   { question: "Musím platiť vopred?", answer: "Nie. Formulár je nezáväzný a platbu dohodneme až po potvrdení vašej požiadavky." },
   { question: "Kedy sa mi ozvete?", answer: "Ozveme sa čo najskôr na telefónne číslo, ktoré uvediete vo formulári." },
-  { question: "Čo mám uviesť do poznámky?", answer: "Napíšte nám želaný termín, počet bicyklov a všetko, čo by sme mali vedieť." },
-  { question: "Kde vás nájdem?", answer: "Nájdete nás v Slovenskom raji. Presné miesto a čas si potvrdíme, keď sa vám ozveme." },
+  { question: "Čo mám uviesť do poznámky?", answer: "Napíšte nám želaný termín, typ bicykla, počet bicyklov a všetko, čo by sme mali vedieť." },
+  { question: "Kde vás nájdem?", answer: "Servis Sambike nájdete na adrese Letná 51 v Spišskej Novej Vsi." },
   { question: "Môžem si vybrať termín?", answer: "Áno. Uveďte ho do poznámky a pri potvrdení spolu overíme dostupnosť." },
-  { question: "Môžem poslať požiadavku pre viac bicyklov?", answer: "Áno. Počet bicyklov uveďte do poznámky a ich dostupnosť overíme pri potvrdení." },
+  { question: "Servisujete aj e-biky?", answer: "Áno. V servise sa venujeme cestným, gravelovým, horským aj elektrickým bicyklom." },
 ];
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -62,81 +74,104 @@ export default async function CampaignLandingPage({ params }: Props) {
     {
       src: campaign.galleryImage1Url || serviceBikePhoto,
       alt: "Horský bicykel pripravený na servisnom stojane",
-      caption: "Kontrola pred každou jazdou.",
+      caption: "Kontrola a nastavenie bicykla.",
     },
     {
       src: campaign.galleryImage2Url || chainPhoto,
       alt: "Porovnanie znečistenej a vyčistenej bicyklovej reťaze",
-      caption: "Pohon vyčistíme a skontrolujeme.",
+      caption: "Čistý a správne nastavený pohon.",
       position: campaign.galleryImage2Url ? "center" : "top",
     },
     {
       src: campaign.galleryImage3Url || wheelServicePhoto,
       alt: "Servis náboja bicyklového kolesa v dielni",
-      caption: "Skontrolujeme aj náboje a kolesá.",
+      caption: "Detailná kontrola kolies a nábojov.",
     },
   ];
 
   return (
-    <main className="campaign-page min-h-screen bg-[#f8faf6]">
+    <main className="campaign-page min-h-screen bg-white text-[var(--ink)]">
       <CampaignTracking campaignSlug={campaign.slug} pixelId={pixelId} />
 
-      <section data-campaign-hero className="relative min-h-[88svh] overflow-hidden bg-[#142219] text-white">
-        <Image src={campaign.imageUrl} alt="" fill priority unoptimized={isRemoteHero} sizes="100vw" className="object-cover opacity-55" />
-        <div className="absolute inset-0 bg-gradient-to-r from-[#101a14]/95 via-[#101a14]/70 to-[#101a14]/20" />
-        <div className="relative mx-auto flex min-h-[88svh] max-w-7xl flex-col px-5 py-6 sm:px-8 lg:px-12">
-          <header className="flex items-center justify-between">
-            <Logo href={`/kampan/${campaign.slug}`} light />
-            <a href={telHref(campaign.phone)} data-track="phone" className="inline-flex items-center gap-2 text-sm font-semibold text-white/85 transition hover:text-white">
-              <Phone size={15} /><span className="hidden sm:inline">{campaign.phone}</span><span className="sm:hidden">Zavolať</span>
+      <section data-campaign-hero className="bg-white">
+        <header className="mx-auto flex h-20 max-w-[88rem] items-center justify-between px-5 sm:h-24 sm:px-8 lg:px-12">
+          <Logo href={`/kampan/${campaign.slug}`} />
+          <div className="flex items-center gap-5">
+            <a href={instagramProfileUrl} target="_blank" rel="noreferrer" className="hidden text-xs font-bold uppercase tracking-[.16em] text-[#6f6d6d] transition hover:text-[var(--accent)] sm:inline">
+              @sambike_snv
             </a>
-          </header>
+            <a href={telHref(campaign.phone)} data-track="phone" className="inline-flex items-center gap-2 text-sm font-bold text-[var(--ink)] transition hover:text-[var(--accent)]">
+              <Phone size={16} className="text-[var(--accent)]" />
+              <span className="hidden sm:inline">{campaign.phone}</span><span className="sm:hidden">Zavolať</span>
+            </a>
+          </div>
+        </header>
 
-          <div className="my-auto max-w-3xl py-16 sm:py-20">
-            <p className="text-xs font-bold uppercase tracking-[.2em] text-[var(--accent)]">{campaign.offerType}</p>
-            <h1 className="mt-5 max-w-[12ch] text-[clamp(3rem,7.5vw,7rem)] font-semibold leading-[.9] tracking-[-.065em]">{campaign.headline}</h1>
-            <p className="mt-6 max-w-2xl text-lg leading-relaxed text-white/80 sm:text-xl">{campaign.description}</p>
-            <p className="mt-5 text-2xl font-semibold text-[var(--accent)] sm:text-3xl">{campaign.priceText}</p>
-            <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-4">
-              <a href={primaryHref} data-track="cta" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-[var(--accent)] px-6 py-3 font-bold text-[#17231b] transition hover:bg-[#e4ff76]">
-                {campaign.ctaText} <ArrowRight size={17} />
-              </a>
-              <a href={telHref(campaign.phone)} data-track="phone" className="inline-flex min-h-11 items-center gap-2 border-b border-white/45 px-1 font-semibold text-white transition hover:border-white">
-                <Phone size={17} /> Zavolať
-              </a>
+        <div className="mx-auto grid min-h-[calc(88svh-5rem)] max-w-[96rem] lg:grid-cols-[minmax(0,.92fr)_minmax(28rem,1.08fr)]">
+          <div className="flex items-center px-5 py-14 sm:px-8 sm:py-20 lg:px-12 lg:py-24 xl:pl-20">
+            <div className="max-w-2xl">
+              <div className="mb-8 h-[3px] w-24 bg-[var(--accent)]" />
+              <p className="text-xs font-bold uppercase tracking-[.24em] text-[var(--accent)]">{campaign.offerType} · Spišská Nová Ves</p>
+              <h1 className="mt-5 max-w-[11ch] text-[clamp(3.15rem,6vw,6.8rem)] font-bold leading-[.91] tracking-[-.065em]">{campaign.headline}</h1>
+              <p className="mt-7 max-w-xl text-lg leading-relaxed text-[#626060] sm:text-xl">{campaign.description}</p>
+              <p className="mt-6 text-2xl font-bold tracking-[-.025em] text-[var(--ink)] sm:text-3xl">{campaign.priceText}</p>
+              <div className="mt-9 flex flex-wrap items-center gap-x-7 gap-y-4">
+                <a href={primaryHref} data-track="cta" className="inline-flex min-h-12 items-center justify-center gap-3 rounded-[3px] bg-[var(--accent)] px-6 py-3 font-bold text-white transition hover:bg-[#075eac]">
+                  {campaign.ctaText} <ArrowRight size={18} />
+                </a>
+                <a href={telHref(campaign.phone)} data-track="phone" className="inline-flex min-h-11 items-center gap-2 border-b border-[#aaa7a7] px-1 font-bold text-[var(--ink)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]">
+                  <Phone size={17} /> Zavolať
+                </a>
+              </div>
+              {campaign.formEnabled && <p className="mt-4 text-xs text-[#858282]">Bez platby vopred <span aria-hidden="true">•</span> Ozveme sa s potvrdením</p>}
             </div>
-            {campaign.formEnabled && <p className="mt-4 text-xs text-white/65">Bez platby vopred <span aria-hidden="true">•</span> Ozveme sa s potvrdením</p>}
+          </div>
+
+          <div className="relative min-h-[31rem] overflow-hidden bg-[#ecebea] lg:min-h-[calc(88svh-5rem)]">
+            <Image src={campaign.imageUrl} alt={campaign.headline} fill loading="eager" unoptimized={isRemoteHero} sizes="(max-width: 1024px) 100vw, 56vw" className="object-cover" />
+            <div className="absolute inset-y-0 left-0 hidden w-[5px] bg-[var(--accent)] lg:block" />
+            <Image src="/brand/sambike-mark.png" alt="" width={240} height={220} className="absolute bottom-7 right-7 h-auto w-20 opacity-90 sm:bottom-10 sm:right-10 sm:w-24" />
           </div>
         </div>
       </section>
 
-      <section className="mx-auto grid max-w-7xl gap-9 px-5 py-14 sm:px-8 lg:grid-cols-[.9fr_1.1fr] lg:items-end lg:px-12 lg:py-18">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[.18em] text-[#71805c]">Ako to prebieha</p>
-          <h2 className="mt-3 text-3xl font-semibold tracking-[-.04em] sm:text-5xl">Stačí nám napísať.<br />Podrobnosti dohodneme spolu.</h2>
+      <section aria-label="Typy bicyklov" className="bg-[var(--ink)] text-white">
+        <div className="mx-auto grid max-w-[88rem] grid-cols-2 gap-x-10 gap-y-5 px-5 py-7 text-xs font-bold uppercase tracking-[.28em] sm:grid-cols-4 sm:px-8 lg:px-12">
+          <span>Road</span><span>Gravel</span><span className="sm:text-right">MTB</span><span className="text-right">E-bike</span>
         </div>
-        <ul className="grid gap-3 sm:grid-cols-3" aria-label="Výhody SAMBIKE">
-          {benefits.map((benefit) => (
-            <li key={benefit} className="flex items-start gap-3 text-sm leading-relaxed text-[#4f5b52] sm:block">
-              <Check size={18} className="mt-0.5 shrink-0 text-[#6f8b3e] sm:mb-3 sm:mt-0" />{benefit}
-            </li>
-          ))}
-        </ul>
+      </section>
+
+      <section className="mx-auto max-w-[88rem] px-5 py-16 sm:px-8 lg:px-12 lg:py-24">
+        <div className="grid gap-12 lg:grid-cols-[.78fr_1.22fr] lg:gap-20">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[.22em] text-[var(--accent)]">Ako to prebieha</p>
+            <h2 className="mt-4 max-w-xl text-4xl font-bold leading-[1.02] tracking-[-.045em] sm:text-5xl">Stačí nám napísať. O zvyšok sa postaráme.</h2>
+          </div>
+          <ul className="grid gap-8 sm:grid-cols-3" aria-label="Výhody Sambike">
+            {benefits.map(({ icon: Icon, title, text }) => (
+              <li key={title} className="border-t border-[#d9d7d7] pt-5">
+                <Icon size={21} strokeWidth={1.8} className="text-[var(--accent)]" />
+                <h3 className="mt-5 font-bold">{title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-[#6f6d6d]">{text}</p>
+              </li>
+            ))}
+          </ul>
+        </div>
       </section>
 
       {campaign.formEnabled && (
-        <section id="mam-zaujem" data-lead-form-section className="scroll-mt-6 bg-[#eef2ec]">
-          <div className="mx-auto grid max-w-7xl gap-8 px-5 py-14 sm:px-8 lg:grid-cols-[.72fr_1.28fr] lg:gap-16 lg:px-12 lg:py-18">
+        <section id="mam-zaujem" data-lead-form-section className="scroll-mt-6 bg-[#f3f3f2]">
+          <div className="mx-auto grid max-w-[88rem] gap-12 px-5 py-16 sm:px-8 lg:grid-cols-[.72fr_1.28fr] lg:gap-20 lg:px-12 lg:py-24">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[.18em] text-[#71805c]">Nezáväzná požiadavka</p>
-              <h2 className="mt-3 text-4xl font-semibold tracking-[-.045em]">Dohodnime si podrobnosti</h2>
-              <p className="mt-4 max-w-sm leading-relaxed text-[#657067]">Stačí meno a telefón. Ozveme sa, overíme dostupnosť alebo termín a dohodneme ďalší postup.</p>
-              <div className="mt-7 space-y-3 text-sm">
-                <a href={telHref(campaign.phone)} data-track="phone" className="flex items-center gap-3 hover:underline"><Phone size={16} />{campaign.phone}</a>
-                <a href={`mailto:${campaign.email}`} className="flex items-center gap-3 hover:underline"><Mail size={16} />{campaign.email}</a>
-                <a href={instagramProfileUrl} target="_blank" rel="noreferrer" className="flex items-center gap-3 hover:underline"><AtSign size={16} />Instagram</a>
-                <a href={facebookProfileUrl} target="_blank" rel="noreferrer" className="flex items-center gap-3 hover:underline"><LinkIcon size={16} />Facebook</a>
-                <p className="flex items-center gap-3 text-[#657067]"><MapPin size={16} />Slovenský raj, Slovensko</p>
+              <p className="text-xs font-bold uppercase tracking-[.22em] text-[var(--accent)]">Nezáväzná požiadavka</p>
+              <h2 className="mt-4 text-4xl font-bold leading-[1.02] tracking-[-.045em] sm:text-5xl">Dohodnime si podrobnosti</h2>
+              <p className="mt-5 max-w-sm leading-relaxed text-[#6f6d6d]">Stačí meno a telefón. Ozveme sa, overíme termín alebo dostupnosť a dohodneme ďalší postup.</p>
+              <div className="mt-8 space-y-3 text-sm">
+                <a href={telHref(campaign.phone)} data-track="phone" className="flex items-center gap-3 hover:text-[var(--accent)]"><Phone size={17} className="text-[var(--accent)]" />{campaign.phone}</a>
+                <a href={`mailto:${campaign.email}`} className="flex items-center gap-3 hover:text-[var(--accent)]"><Mail size={17} className="text-[var(--accent)]" />{campaign.email}</a>
+                <a href={instagramProfileUrl} target="_blank" rel="noreferrer" className="flex items-center gap-3 hover:text-[var(--accent)]"><AtSign size={17} className="text-[var(--accent)]" />@sambike_snv</a>
+                <a href={facebookProfileUrl} target="_blank" rel="noreferrer" className="flex items-center gap-3 hover:text-[var(--accent)]"><LinkIcon size={17} className="text-[var(--accent)]" />Facebook</a>
+                <p className="flex items-start gap-3 text-[#6f6d6d]"><MapPin size={17} className="mt-0.5 shrink-0 text-[var(--accent)]" />Letná 51, Spišská Nová Ves</p>
               </div>
             </div>
             <LeadForm campaignId={campaign.id} campaignSlug={campaign.slug} offerType={campaign.offerType} />
@@ -144,32 +179,34 @@ export default async function CampaignLandingPage({ params }: Props) {
         </section>
       )}
 
-      <section className="mx-auto grid max-w-7xl items-center gap-10 px-5 py-16 sm:px-8 lg:grid-cols-2 lg:gap-20 lg:px-12 lg:py-24">
-        <div className="relative aspect-[4/3] overflow-hidden bg-[#e9ede7]">
+      <section className="mx-auto grid max-w-[88rem] items-center gap-12 px-5 py-16 sm:px-8 lg:grid-cols-2 lg:gap-20 lg:px-12 lg:py-24">
+        <div className="relative aspect-[4/3] overflow-hidden bg-[#ecebea]">
           <Image src={offerImage} alt={campaign.headline} fill unoptimized={typeof offerImage === "string" && /^https?:\/\//.test(offerImage)} sizes="(max-width: 1024px) 100vw, 50vw" className="object-cover" />
         </div>
         <div>
-          <p className="text-xs font-bold uppercase tracking-[.18em] text-[#71805c]">Aktuálna ponuka</p>
-          <h2 className="mt-3 text-4xl font-semibold tracking-[-.045em] sm:text-5xl">{campaign.name}</h2>
-          <p className="mt-5 max-w-xl text-lg leading-relaxed text-[#5e6961]">{campaign.description}</p>
-          <div className="mt-7 flex items-baseline gap-3 border-t border-[#dce3dc] pt-5">
-            <span className="text-xs font-bold uppercase tracking-[.14em] text-[#7d887f]">Cena a podmienky</span>
-            <strong className="text-xl text-[#26372a]">{campaign.priceText}</strong>
+          <p className="text-xs font-bold uppercase tracking-[.22em] text-[var(--accent)]">Aktuálna ponuka</p>
+          <h2 className="mt-4 text-4xl font-bold leading-[1.02] tracking-[-.045em] sm:text-5xl">{campaign.name}</h2>
+          <p className="mt-6 max-w-xl text-lg leading-relaxed text-[#6f6d6d]">{campaign.description}</p>
+          <div className="mt-8 border-t border-[#d9d7d7] pt-6">
+            <span className="block text-xs font-bold uppercase tracking-[.17em] text-[#858282]">Cena a podmienky</span>
+            <strong className="mt-2 block text-2xl text-[var(--ink)]">{campaign.priceText}</strong>
           </div>
-          <a href={primaryHref} data-track="cta" className="mt-7 inline-flex items-center gap-2 font-semibold text-[#26372a] underline decoration-[#a6bb57] decoration-2 underline-offset-4">{campaign.ctaText} <ArrowRight size={16} /></a>
+          <a href={primaryHref} data-track="cta" className="mt-8 inline-flex items-center gap-2 font-bold text-[var(--accent)]">{campaign.ctaText} <ArrowRight size={17} /></a>
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-5 pb-16 sm:px-8 lg:px-12 lg:pb-24">
-        <div className="border-t border-[#dce3dc] pt-12">
-          <p className="text-xs font-bold uppercase tracking-[.18em] text-[#71805c]">Príprava pred jazdou</p>
-          <h2 className="mt-3 max-w-4xl text-3xl font-semibold tracking-[-.04em] sm:text-5xl">Pred jazdou bicykel dôkladne skontrolujeme.</h2>
-          <p className="mt-4 text-sm text-[#657067]">Kontrola <span aria-hidden="true">•</span> čistý pohon <span aria-hidden="true">•</span> správny tlak <span aria-hidden="true">•</span> nastavenie podľa jazdca</p>
+      <section className="mx-auto max-w-[88rem] px-5 pb-16 sm:px-8 lg:px-12 lg:pb-24">
+        <div className="border-t border-[#d9d7d7] pt-12">
+          <p className="text-xs font-bold uppercase tracking-[.22em] text-[var(--accent)]">Práca zo servisu</p>
+          <div className="mt-4 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+            <h2 className="max-w-3xl text-4xl font-bold leading-[1.02] tracking-[-.045em] sm:text-5xl">Bicykel skontrolujeme do posledného detailu.</h2>
+            <p className="max-w-sm text-sm leading-relaxed text-[#6f6d6d]">Kontrola · čistý pohon · správny tlak · nastavenie podľa jazdca</p>
+          </div>
         </div>
-        <div className="mt-8 grid gap-5 sm:grid-cols-3">
+        <div className="mt-10 grid gap-6 sm:grid-cols-3">
           {servicePhotos.map((photo) => (
             <figure key={photo.caption}>
-              <div className="relative aspect-[4/3] overflow-hidden bg-[#e9ede7]">
+              <div className="relative aspect-[4/3] overflow-hidden bg-[#ecebea]">
                 <Image
                   src={photo.src}
                   alt={photo.alt}
@@ -181,55 +218,59 @@ export default async function CampaignLandingPage({ params }: Props) {
                   style={{ objectPosition: photo.position ?? "center" }}
                 />
               </div>
-              <figcaption className="mt-2 text-xs text-[#7e8880]">{photo.caption}</figcaption>
+              <figcaption className="mt-3 flex items-center gap-2 text-xs text-[#777474]"><span className="h-px w-5 bg-[var(--accent)]" />{photo.caption}</figcaption>
             </figure>
           ))}
         </div>
       </section>
 
-      <section className="bg-[#142219] text-white">
-        <div className="mx-auto grid max-w-7xl items-center gap-12 px-5 py-16 sm:px-8 lg:grid-cols-[1fr_380px] lg:px-12 lg:py-24">
+      <section className="bg-[var(--ink)] text-white">
+        <div className="mx-auto grid max-w-[88rem] items-center gap-12 px-5 py-16 sm:px-8 lg:grid-cols-[1fr_380px] lg:px-12 lg:py-24">
           <div className="max-w-xl">
-            <p className="text-xs font-bold uppercase tracking-[.18em] text-[var(--accent)]">Zo servisu</p>
-            <h2 className="mt-3 text-4xl font-semibold tracking-[-.045em] sm:text-6xl">Pozrite si, ako pracujeme.</h2>
-            <p className="mt-5 text-lg leading-relaxed text-white/68">Krátke video priamo z našej dielne.</p>
-            <a href={facebookReelUrl} target="_blank" rel="noreferrer" className="mt-7 inline-flex items-center gap-2 border-b border-white/35 pb-1 text-sm font-semibold transition hover:border-white"><Play size={16} fill="currentColor" /> Pozrieť video na Facebooku <ExternalLink size={14} /></a>
+            <Image src="/brand/sambike-mark.png" alt="" width={240} height={220} className="h-auto w-16" />
+            <p className="mt-8 text-xs font-bold uppercase tracking-[.22em] text-[#4ca3ef]">Zo servisu</p>
+            <h2 className="mt-4 text-4xl font-bold leading-[1.02] tracking-[-.045em] sm:text-6xl">Pozrite sa, ako pracujeme.</h2>
+            <p className="mt-5 text-lg leading-relaxed text-white/65">Krátke video priamo z našej dielne v Spišskej Novej Vsi.</p>
+            <a href={facebookReelUrl} target="_blank" rel="noreferrer" className="mt-8 inline-flex items-center gap-2 border-b border-white/40 pb-1 text-sm font-bold transition hover:border-[#4ca3ef] hover:text-[#4ca3ef]"><Play size={16} fill="currentColor" /> Pozrieť video na Facebooku <ExternalLink size={14} /></a>
           </div>
           <div className="mx-auto w-full max-w-[380px] overflow-hidden bg-black">
-            <iframe src={facebookEmbedUrl} title="SAMBIKE video z Facebooku" width="500" height="750" loading="lazy" allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share" allowFullScreen className="aspect-[9/16] h-auto w-full" />
+            <iframe src={facebookEmbedUrl} title="Sambike video z Facebooku" width="500" height="750" loading="lazy" allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share" allowFullScreen className="aspect-[9/16] h-auto w-full" />
           </div>
         </div>
       </section>
 
-      <section className="mx-auto grid max-w-7xl gap-10 px-5 py-16 sm:px-8 lg:grid-cols-[.7fr_1.3fr] lg:px-12 lg:py-24">
+      <section className="mx-auto grid max-w-[88rem] gap-12 px-5 py-16 sm:px-8 lg:grid-cols-[.7fr_1.3fr] lg:px-12 lg:py-24">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[.18em] text-[#71805c]">Praktické informácie</p>
-          <h2 className="mt-3 text-4xl font-semibold tracking-[-.045em]">Časté otázky</h2>
+          <p className="text-xs font-bold uppercase tracking-[.22em] text-[var(--accent)]">Praktické informácie</p>
+          <h2 className="mt-4 text-4xl font-bold tracking-[-.045em] sm:text-5xl">Časté otázky</h2>
         </div>
         <div>
           {faq.map((item, index) => (
-            <details key={item.question} className="group border-t border-[#dce3dc] py-1" open={index === 0}>
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-5 py-5 font-semibold marker:content-none">{item.question}<span className="text-xl font-normal text-[#71805c] transition group-open:rotate-45" aria-hidden="true">+</span></summary>
-              <p className="max-w-2xl pb-5 pr-10 leading-relaxed text-[#657067]">{item.answer}</p>
+            <details key={item.question} className="group border-t border-[#d9d7d7] py-1" open={index === 0}>
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-5 py-5 font-bold marker:content-none">{item.question}<span className="text-2xl font-normal text-[var(--accent)] transition group-open:rotate-45" aria-hidden="true">+</span></summary>
+              <p className="max-w-2xl pb-5 pr-10 leading-relaxed text-[#6f6d6d]">{item.answer}</p>
             </details>
           ))}
         </div>
       </section>
 
-      <section data-final-cta className="bg-[var(--accent)] px-5 py-14 sm:px-8 lg:px-12 lg:py-18">
-        <div className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-7 sm:flex-row sm:items-center">
-          <div><p className="text-xs font-bold uppercase tracking-[.18em] text-[#53632d]">Bez platby vopred</p><h2 className="mt-2 text-3xl font-semibold tracking-[-.04em] sm:text-5xl">Pošlite nám nezáväznú požiadavku.</h2></div>
-          <div className="flex flex-wrap items-center gap-5">
-            <a href={primaryHref} data-track="cta" className="inline-flex min-h-12 items-center gap-2 rounded-lg bg-[#17231b] px-6 py-3 font-semibold text-white">{campaign.ctaText} <ArrowRight size={17} /></a>
-            <a href={telHref(campaign.phone)} data-track="phone" className="inline-flex items-center gap-2 font-semibold text-[#17231b]"><Phone size={17} /> Zavolať</a>
+      <section data-final-cta className="bg-[var(--accent)] px-5 py-16 text-white sm:px-8 lg:px-12 lg:py-20">
+        <div className="mx-auto flex max-w-[88rem] flex-col items-start justify-between gap-9 sm:flex-row sm:items-center">
+          <div><p className="text-xs font-bold uppercase tracking-[.22em] text-white/70">Bez platby vopred</p><h2 className="mt-3 max-w-3xl text-4xl font-bold leading-[1.02] tracking-[-.045em] sm:text-5xl">Pošlite nám nezáväznú požiadavku.</h2></div>
+          <div className="flex shrink-0 flex-wrap items-center gap-5">
+            <a href={primaryHref} data-track="cta" className="inline-flex min-h-12 items-center gap-2 rounded-[3px] bg-[var(--ink)] px-6 py-3 font-bold text-white">{campaign.ctaText} <ArrowRight size={17} /></a>
+            <a href={telHref(campaign.phone)} data-track="phone" className="inline-flex items-center gap-2 font-bold text-white"><Phone size={17} /> Zavolať</a>
           </div>
         </div>
       </section>
 
-      <footer className="bg-[#142219] px-5 py-7 text-white sm:px-8 lg:px-12">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <footer className="bg-[var(--ink)] px-5 py-9 text-white sm:px-8 lg:px-12">
+        <div className="mx-auto flex max-w-[88rem] flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
           <Logo href={`/kampan/${campaign.slug}`} light />
-          <p className="text-xs text-white/50">© {new Date().getFullYear()} SAMBIKE</p>
+          <div className="flex flex-col gap-1 text-xs text-white/55 sm:text-right">
+            <span>Letná 51 · Spišská Nová Ves</span>
+            <span>© {new Date().getFullYear()} Sambike · servis bicyklov</span>
+          </div>
         </div>
       </footer>
 

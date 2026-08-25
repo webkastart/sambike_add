@@ -69,7 +69,7 @@ export default async function SettingsPage({
             </div>
             <button
               type="submit"
-              className="mt-6 inline-flex min-h-10 items-center rounded-lg bg-[var(--accent-dark)] px-4 text-sm font-semibold text-white transition hover:bg-[#314336]"
+              className="mt-6 inline-flex min-h-10 items-center rounded-[3px] bg-[var(--accent-dark)] px-4 text-sm font-semibold text-white transition hover:bg-[#075eac]"
             >
               Uložiť výber
             </button>

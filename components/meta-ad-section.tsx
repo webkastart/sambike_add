@@ -178,7 +178,7 @@ export function MetaAdSection({
           </div>
 
           <div className="mt-7 flex flex-wrap items-center gap-4">
-            <button type="submit" className="rounded-lg bg-[var(--accent-dark)] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#314336]">
+            <button type="submit" className="rounded-[3px] bg-[var(--accent-dark)] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#075eac]">
               {ad?.status === "ERROR" ? "Skúsiť vytvoriť znova" : "Vytvoriť pozastavenú reklamu"}
             </button>
             <span className="text-xs text-[#89918b]">Vytvorenie ešte nespustí čerpanie rozpočtu.</span>

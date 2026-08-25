@@ -130,7 +130,7 @@ export function CampaignForm({ campaign, action, submitLabel }: Props) {
       </div>
 
       <div className="mt-10 flex items-center gap-4">
-        <button className="rounded-lg bg-[var(--accent-dark)] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#314336]" type="submit">
+        <button className="rounded-[3px] bg-[var(--accent-dark)] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#075eac]" type="submit">
           {submitLabel}
         </button>
         <span className="text-xs text-[#89918b]">Diakritiku a medzery v adrese upravíme automaticky.</span>

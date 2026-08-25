@@ -35,7 +35,7 @@ export function MobileStickyCta({ ctaText, primaryHref, phone }: Props) {
 
   return (
     <div className={`mobile-sticky-cta md:hidden ${visible ? "is-visible" : ""}`} aria-hidden={!visible}>
-      <a href={primaryHref} data-track="cta" tabIndex={visible ? 0 : -1} className="flex min-h-11 flex-1 items-center justify-center rounded-lg bg-[var(--accent)] px-4 text-sm font-bold text-[#17231b]">
+      <a href={primaryHref} data-track="cta" tabIndex={visible ? 0 : -1} className="flex min-h-11 flex-1 items-center justify-center rounded-[3px] bg-[var(--accent)] px-4 text-sm font-bold text-white">
         {ctaText}
       </a>
       <a href={telHref(phone)} data-track="phone" tabIndex={visible ? 0 : -1} aria-label={`Zavolať na ${phone}`} className="flex min-h-11 items-center justify-center gap-2 px-2 text-sm font-semibold text-white">

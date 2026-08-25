@@ -47,7 +47,7 @@ export default async function DashboardPage({
           <h1 className="mt-2 text-3xl font-semibold tracking-[-.035em] sm:text-4xl">Kampane</h1>
           <p className="mt-2 text-sm text-[#737c75]">Kampane, ich verejné stránky a záujemcovia z formulárov.</p>
         </div>
-        <Link href="/admin/kampane/nova" className="inline-flex w-fit items-center gap-2 rounded-lg bg-[var(--accent-dark)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#314336]">
+        <Link href="/admin/kampane/nova" className="inline-flex w-fit items-center gap-2 rounded-[3px] bg-[var(--accent-dark)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#075eac]">
           <Plus size={16} /> Vytvoriť kampaň
         </Link>
       </header>
@@ -90,8 +90,8 @@ export default async function DashboardPage({
                     <span className={`size-1.5 shrink-0 rounded-full ${campaign.isActive ? "bg-[#7da33e]" : "bg-[#b9bfba]"}`} />
                     <Link href={`/admin/kampane/${campaign.id}`} className="truncate text-sm font-medium hover:underline">{campaign.name}</Link>
                   </div>
-                  <div className="mt-3 h-1 overflow-hidden bg-[#e7ebe7]" aria-label={`${campaign.name}: ${share} % všetkých záujemcov`}>
-                    <div className="h-full bg-[#81974c]" style={{ width: `${share}%` }} />
+                  <div className="mt-3 h-1 overflow-hidden bg-[#e5e5e4]" aria-label={`${campaign.name}: ${share} % všetkých záujemcov`}>
+                    <div className="h-full bg-[var(--accent)]" style={{ width: `${share}%` }} />
                   </div>
                 </div>
                 <div className="text-right">

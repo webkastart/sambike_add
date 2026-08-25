@@ -42,7 +42,7 @@ export function MetaAdControls({
               run(startAction);
             }
           }}
-          className="inline-flex items-center gap-2 rounded-lg bg-[var(--accent-dark)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#314336] disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-[3px] bg-[var(--accent-dark)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#075eac] disabled:opacity-50"
         >
           {pending ? <LoaderCircle size={15} className="animate-spin" /> : <Play size={15} />}
           Spustiť reklamu

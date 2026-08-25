@@ -1,14 +1,17 @@
+import Image from "next/image";
 import Link from "next/link";
 
 export function Logo({ href = "/admin", light = false }: { href?: string; light?: boolean }) {
   return (
-    <Link href={href} className="inline-flex items-center gap-2.5" aria-label="SAMBIKE">
-      <span className="grid size-7 place-items-center rounded-full bg-[var(--accent)] text-xs font-black text-[#18231c]">
-        S
-      </span>
-      <span className={`text-sm font-black tracking-[.16em] ${light ? "text-white" : "text-[var(--ink)]"}`}>
-        SAMBIKE
-      </span>
+    <Link href={href} className="inline-flex shrink-0 items-center" aria-label="Sambike · servis bicyklov">
+      <Image
+        src={light ? "/brand/sambike-wordmark-white.png" : "/brand/sambike-wordmark.png"}
+        alt="Sambike"
+        width={610}
+        height={170}
+        loading="eager"
+        className="h-auto w-[8.6rem] sm:w-[9.6rem]"
+      />
     </Link>
   );
 }
