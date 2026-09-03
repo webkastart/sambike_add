@@ -29,8 +29,22 @@ model Campaign {
   updatedAt        DateTime @updatedAt
   leads            Lead[]
   metaAd            MetaAdCampaign?
+  galleryItems      CampaignGalleryItem[]
 
   @@index([isActive])
+}
+
+model CampaignGalleryItem {
+  id         String   @id @default(cuid())
+  campaignId String
+  mediaUrl   String   @map("imageUrl")
+  mediaType  String   @default("IMAGE")
+  sortOrder  Int
+  createdAt  DateTime @default(now())
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId, sortOrder])
+  @@map("CampaignGalleryImage")
 }
 
 model MetaAdCampaign {

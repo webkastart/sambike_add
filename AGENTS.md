@@ -7,3 +7,14 @@ This version has breaking changes — APIs, conventions, and file structure may 
 This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
+
+# Project map
+
+Sambike Ads is a Slovak campaign landing-page and lead-capture app with an internal campaign/lead administration area.
+
+- Stack: Next.js 16 App Router, React 19, Tailwind CSS 4, Prisma 7 and SQLite in local development.
+- Campaign mutations and lead submission live in `app/actions.ts`; the public landing page is `app/kampan/[slug]/page.tsx`.
+- Prisma schema and migrations live under `prisma/`; the generated client is committed under `generated/prisma/` and must be refreshed with `npm run db:generate` after schema edits.
+- Uploaded campaign media is validated in `lib/campaign-media.ts`, stored under `storage/campaign-images/`, and served with image/video content types and byte ranges through `app/uploads/[filename]/route.ts`.
+- Hero and offer images are fixed campaign fields. The remaining ordered mixed-media gallery is the `CampaignGalleryItem` relation; it accepts images and MP4 videos, and the landing page determines their responsive layout from list position.
+- Verification commands: `npm run lint`, `npx tsc --noEmit`, and `npm run build`. Apply local migrations with `npm run db:migrate`.

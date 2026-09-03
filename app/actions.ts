@@ -8,11 +8,13 @@ import { sendLeadConfirmation, sendLeadNotification } from "@/lib/email";
 import { getConfiguredNotificationEmails } from "@/lib/notification-recipients";
 import { deleteRemoteMetaAd, setRemoteMetaAdStatus } from "@/lib/meta-ads";
 import {
-  CampaignImageError,
+  CampaignMediaError,
   hasCampaignImageUpload,
-  removeCampaignImage,
+  hasCampaignMediaUpload,
+  removeCampaignMedia,
+  saveCampaignGalleryMedia,
   saveCampaignImage,
-} from "@/lib/campaign-image";
+} from "@/lib/campaign-media";
 
 function text(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
@@ -39,10 +41,11 @@ export async function updateLeadNotificationRecipients(formData: FormData) {
 const campaignImageFields = [
   { file: "imageFile", url: "imageUrl" },
   { file: "offerImageFile", url: "offerImageUrl" },
-  { file: "galleryImage1File", url: "galleryImage1Url" },
-  { file: "galleryImage2File", url: "galleryImage2Url" },
-  { file: "galleryImage3File", url: "galleryImage3Url" },
 ] as const;
+
+const legacyCampaignImageUrlFields = ["galleryImage1Url", "galleryImage2Url", "galleryImage3Url"] as const;
+const maxGalleryItems = 20;
+const maxUploadBatchSize = 20 * 1024 * 1024;
 
 type CampaignImageUrlField = (typeof campaignImageFields)[number]["url"];
 type UploadedCampaignImages = Partial<Record<CampaignImageUrlField, string>>;
@@ -55,9 +58,6 @@ function campaignInput(formData: FormData) {
     description: text(formData, "description"),
     imageUrl: text(formData, "imageUrl"),
     offerImageUrl: text(formData, "offerImageUrl"),
-    galleryImage1Url: text(formData, "galleryImage1Url"),
-    galleryImage2Url: text(formData, "galleryImage2Url"),
-    galleryImage3Url: text(formData, "galleryImage3Url"),
     priceText: text(formData, "priceText"),
     ctaText: text(formData, "ctaText"),
     offerType: text(formData, "offerType"),
@@ -76,24 +76,42 @@ function hasRequiredCampaignData(data: ReturnType<typeof campaignInput>, hasImag
   return hasTextData && (Boolean(data.imageUrl) || hasImage);
 }
 
-async function removeCampaignImages(imageUrls: Array<string | null | undefined>) {
-  for (const imageUrl of imageUrls) {
-    if (imageUrl) await removeCampaignImage(imageUrl);
+async function removeCampaignMediaFiles(mediaUrls: Array<string | null | undefined>) {
+  for (const mediaUrl of mediaUrls) {
+    if (mediaUrl) await removeCampaignMedia(mediaUrl);
   }
 }
 
-async function uploadedCampaignImages(formData: FormData, errorPath: string) {
+async function uploadedCampaignMedia(formData: FormData, errorPath: string, galleryPlaces: number) {
   const uploaded: UploadedCampaignImages = {};
+  const galleryItems: Array<{ mediaType: "IMAGE" | "VIDEO"; mediaUrl: string }> = [];
 
   try {
+    const uploadValues = [
+      ...campaignImageFields.map((field) => formData.get(field.file)),
+      ...formData.getAll("galleryMediaFiles"),
+    ].filter(hasCampaignMediaUpload);
+    const uploadSize = uploadValues.reduce((total, file) => total + file.size, 0);
+    if (uploadSize > maxUploadBatchSize) {
+      throw new CampaignMediaError("Naraz môžete nahrať najviac 20 MB. Ďalšie súbory pridajte po uložení kampane.");
+    }
+
     for (const field of campaignImageFields) {
       const imageUrl = await saveCampaignImage(formData.get(field.file));
       if (imageUrl) uploaded[field.url] = imageUrl;
     }
-    return uploaded;
+    for (const value of formData.getAll("galleryMediaFiles")) {
+      if (!hasCampaignMediaUpload(value)) continue;
+      if (galleryItems.length >= galleryPlaces) {
+        throw new CampaignMediaError(`Galéria môže obsahovať najviac ${maxGalleryItems} položiek.`);
+      }
+      const item = await saveCampaignGalleryMedia(value);
+      if (item) galleryItems.push(item);
+    }
+    return { images: uploaded, galleryItems };
   } catch (error) {
-    await removeCampaignImages(Object.values(uploaded));
-    if (error instanceof CampaignImageError) {
+    await removeCampaignMediaFiles([...Object.values(uploaded), ...galleryItems.map((item) => item.mediaUrl)]);
+    if (error instanceof CampaignMediaError) {
       redirect(`${errorPath}?error=${encodeURIComponent(error.message)}`);
     }
     throw error;
@@ -108,9 +126,6 @@ function campaignImageData(
   return {
     imageUrl: uploaded.imageUrl || data.imageUrl || currentImageUrl,
     offerImageUrl: uploaded.offerImageUrl || data.offerImageUrl || null,
-    galleryImage1Url: uploaded.galleryImage1Url || data.galleryImage1Url || null,
-    galleryImage2Url: uploaded.galleryImage2Url || data.galleryImage2Url || null,
-    galleryImage3Url: uploaded.galleryImage3Url || data.galleryImage3Url || null,
   };
 }
 
@@ -124,13 +139,21 @@ export async function createCampaign(formData: FormData) {
   if (existing) {
     redirect("/admin/kampane/nova?error=Táto+adresa+stránky+sa+už+používa.");
   }
-  const uploadedImages = await uploadedCampaignImages(formData, "/admin/kampane/nova");
-  const images = campaignImageData(data, uploadedImages);
+  const uploadedMedia = await uploadedCampaignMedia(formData, "/admin/kampane/nova", maxGalleryItems);
+  const images = campaignImageData(data, uploadedMedia.images);
 
   try {
-    await prisma.campaign.create({ data: { ...data, ...images } });
+    await prisma.campaign.create({
+      data: {
+        ...data,
+        ...images,
+        galleryItems: {
+          create: uploadedMedia.galleryItems.map((item, sortOrder) => ({ ...item, sortOrder })),
+        },
+      },
+    });
   } catch (error) {
-    await removeCampaignImages(Object.values(uploadedImages));
+    await removeCampaignMediaFiles([...Object.values(uploadedMedia.images), ...uploadedMedia.galleryItems.map((item) => item.mediaUrl)]);
     throw error;
   }
   revalidatePath("/admin");
@@ -141,7 +164,10 @@ export async function updateCampaign(id: string, formData: FormData) {
   const data = campaignInput(formData);
   const currentCampaign = await prisma.campaign.findUniqueOrThrow({
     where: { id },
-    include: { metaAd: true },
+    include: {
+      metaAd: true,
+      galleryItems: { orderBy: { sortOrder: "asc" } },
+    },
   });
   if (currentCampaign.metaAd?.metaCampaignId && data.slug !== currentCampaign.slug) {
     redirect(`/admin/kampane/${id}?error=Adresu+stránky+nie+je+možné+zmeniť,+kým+je+na+ňu+napojená+Meta+reklama.`);
@@ -156,24 +182,59 @@ export async function updateCampaign(id: string, formData: FormData) {
   if (existing) {
     redirect(`/admin/kampane/${id}?error=Táto+adresa+stránky+sa+už+používa.`);
   }
-  const uploadedImages = await uploadedCampaignImages(formData, `/admin/kampane/${id}`);
-  const images = campaignImageData(data, uploadedImages, currentCampaign.imageUrl);
+  const requestedGalleryIds = new Set(formData.getAll("galleryItemId").map(String));
+  const retainedGalleryItems = currentCampaign.galleryItems.filter((item) => requestedGalleryIds.has(item.id));
+  const removedGalleryItems = currentCampaign.galleryItems.filter((item) => !requestedGalleryIds.has(item.id));
+  const uploadedMedia = await uploadedCampaignMedia(
+    formData,
+    `/admin/kampane/${id}`,
+    maxGalleryItems - retainedGalleryItems.length,
+  );
+  const images = campaignImageData(data, uploadedMedia.images, currentCampaign.imageUrl);
 
   try {
-    await prisma.campaign.update({ where: { id }, data: { ...data, ...images } });
+    const galleryUpdates = retainedGalleryItems.map((item, sortOrder) => prisma.campaignGalleryItem.update({
+      where: { id: item.id },
+      data: { sortOrder },
+    }));
+    const galleryCreates = uploadedMedia.galleryItems.length > 0
+      ? [prisma.campaignGalleryItem.createMany({
+        data: uploadedMedia.galleryItems.map((item, index) => ({
+          campaignId: id,
+          ...item,
+          sortOrder: retainedGalleryItems.length + index,
+        })),
+      })]
+      : [];
+
+    await prisma.$transaction([
+      prisma.campaign.update({ where: { id }, data: { ...data, ...images } }),
+      ...galleryUpdates,
+      prisma.campaignGalleryItem.deleteMany({
+        where: { id: { in: removedGalleryItems.map((item) => item.id) } },
+      }),
+      ...galleryCreates,
+    ]);
   } catch (error) {
-    await removeCampaignImages(Object.values(uploadedImages));
+    await removeCampaignMediaFiles([...Object.values(uploadedMedia.images), ...uploadedMedia.galleryItems.map((item) => item.mediaUrl)]);
     throw error;
   }
 
   const previousImages = campaignImageFields.map((field) => currentCampaign[field.url]);
-  const nextImages = Object.values(images);
-  const replacedImages = [...new Set(previousImages.filter((imageUrl) => imageUrl && !nextImages.includes(imageUrl)))];
+  const nextImages = new Set([
+    ...Object.values(images),
+    ...retainedGalleryItems.map((item) => item.mediaUrl),
+    ...uploadedMedia.galleryItems.map((item) => item.mediaUrl),
+  ]);
+  const replacedImages = [...new Set([
+    ...previousImages,
+    ...removedGalleryItems.map((item) => item.mediaUrl),
+  ].filter((imageUrl) => imageUrl && !nextImages.has(imageUrl)))];
   if (replacedImages.length > 0) {
     try {
-      await removeCampaignImages(replacedImages);
+      await removeCampaignMediaFiles(replacedImages);
     } catch (error) {
-      console.error(`Pôvodné obrázky kampane ${id} sa nepodarilo odstrániť:`, error);
+      console.error(`Pôvodné súbory kampane ${id} sa nepodarilo odstrániť:`, error);
     }
   }
   revalidatePath("/admin");
@@ -215,11 +276,19 @@ export async function toggleCampaign(id: string) {
 export async function deleteCampaign(id: string) {
   const metaAd = await prisma.metaAdCampaign.findUnique({ where: { campaignId: id } });
   if (metaAd?.metaCampaignId) await deleteRemoteMetaAd(metaAd.metaCampaignId);
-  const campaign = await prisma.campaign.delete({ where: { id } });
+  const campaign = await prisma.campaign.findUniqueOrThrow({
+    where: { id },
+    include: { galleryItems: true },
+  });
+  await prisma.campaign.delete({ where: { id } });
   try {
-    await removeCampaignImages(campaignImageFields.map((field) => campaign[field.url]));
+    await removeCampaignMediaFiles([
+      ...campaignImageFields.map((field) => campaign[field.url]),
+      ...legacyCampaignImageUrlFields.map((field) => campaign[field]),
+      ...campaign.galleryItems.map((item) => item.mediaUrl),
+    ]);
   } catch (error) {
-    console.error(`Obrázky kampane ${id} sa nepodarilo odstrániť:`, error);
+    console.error(`Súbory kampane ${id} sa nepodarilo odstrániť:`, error);
   }
   revalidatePath("/admin");
   revalidatePath("/admin/leady");

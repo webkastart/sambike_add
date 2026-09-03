@@ -30,7 +30,11 @@ export default async function EditCampaignPage({
   const query = await searchParams;
   const campaign = await prisma.campaign.findUnique({
     where: { id },
-    include: { metaAd: true, _count: { select: { leads: true } } },
+    include: {
+      metaAd: true,
+      galleryItems: { orderBy: { sortOrder: "asc" } },
+      _count: { select: { leads: true } },
+    },
   });
   if (!campaign) notFound();
   const updateAction = updateCampaign.bind(null, campaign.id);

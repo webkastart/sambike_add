@@ -1,8 +1,9 @@
-import type { Campaign } from "@/generated/prisma/client";
+import type { Campaign, CampaignGalleryItem } from "@/generated/prisma/client";
+import { CampaignGalleryField } from "@/components/campaign-gallery-field";
 import { CampaignImageField } from "@/components/campaign-image-field";
 
 type Props = {
-  campaign?: Campaign;
+  campaign?: Campaign & { galleryItems?: CampaignGalleryItem[] };
   action: (formData: FormData) => void | Promise<void>;
   submitLabel: string;
 };
@@ -32,30 +33,6 @@ const imageFields = [
     urlName: "offerImageUrl",
     campaignKey: "offerImageUrl",
     fallbackUrl: undefined,
-  },
-  {
-    label: "Galéria · prvá fotografia",
-    description: "Prvý obrázok v časti „Príprava pred jazdou“.",
-    fileName: "galleryImage1File",
-    urlName: "galleryImage1Url",
-    campaignKey: "galleryImage1Url",
-    fallbackUrl: "/501092085_18330718675164899_5154079394919144617_n.jpg",
-  },
-  {
-    label: "Galéria · druhá fotografia",
-    description: "Prostredný obrázok v časti „Príprava pred jazdou“.",
-    fileName: "galleryImage2File",
-    urlName: "galleryImage2Url",
-    campaignKey: "galleryImage2Url",
-    fallbackUrl: "/491416117_18327442552164899_6592296387915655104_n.jpg",
-  },
-  {
-    label: "Galéria · tretia fotografia",
-    description: "Posledný obrázok v časti „Príprava pred jazdou“.",
-    fileName: "galleryImage3File",
-    urlName: "galleryImage3Url",
-    campaignKey: "galleryImage3Url",
-    fallbackUrl: "/491371448_18327449569164899_1457638043555327763_n.jpg",
   },
 ] as const;
 
@@ -99,7 +76,7 @@ export function CampaignForm({ campaign, action, submitLabel }: Props) {
         </label>
         <div className="md:col-span-2 mt-3 border-t border-[var(--line)] pt-7">
           <h2 className="text-lg font-semibold">Fotografie stránky</h2>
-          <p className="mt-1 text-sm text-[#737c75]">Pre každé miesto môžete nahrať inú fotografiu alebo vložiť odkaz.</p>
+          <p className="mt-1 text-sm text-[#737c75]">Hlavné miesta nastavíte samostatne, ostatné fotografie a videá sa automaticky vyskladajú v galérii.</p>
         </div>
         {imageFields.map((field, index) => (
           <div key={field.urlName} className={`md:col-span-2 ${index > 0 ? "border-t border-[var(--line)] pt-7" : ""}`}>
@@ -116,6 +93,9 @@ export function CampaignForm({ campaign, action, submitLabel }: Props) {
             />
           </div>
         ))}
+        <div className="md:col-span-2 border-t border-[var(--line)] pt-7">
+          <CampaignGalleryField items={campaign?.galleryItems ?? []} />
+        </div>
       </div>
 
       <div className="mt-10 flex flex-wrap gap-x-8 gap-y-4 border-t border-[var(--line)] pt-7">

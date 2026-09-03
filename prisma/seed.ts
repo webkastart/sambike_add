@@ -81,6 +81,16 @@ const campaigns = [
 if ((await prisma.campaign.count()) === 0) {
   await prisma.campaign.createMany({ data: campaigns });
 
+  const createdCampaigns = await prisma.campaign.findMany({ select: { id: true } });
+  await prisma.campaignGalleryItem.createMany({
+    data: createdCampaigns.flatMap((campaign) => Object.values(galleryImages).map((mediaUrl, sortOrder) => ({
+      campaignId: campaign.id,
+      mediaUrl,
+      mediaType: "IMAGE",
+      sortOrder,
+    }))),
+  });
+
   const rental = await prisma.campaign.findUniqueOrThrow({ where: { slug: "pozicovna" } });
   const service = await prisma.campaign.findUniqueOrThrow({ where: { slug: "servis" } });
 

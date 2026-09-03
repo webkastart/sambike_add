@@ -20,12 +20,6 @@ import { MobileStickyCta } from "@/components/mobile-sticky-cta";
 import { Logo } from "@/components/logo";
 import { telHref } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
-import chainPhoto from "@/public/491416117_18327442552164899_6592296387915655104_n.jpg";
-import serviceBikePhoto from "@/public/491417690_18327440080164899_7888323766038421627_n.jpg";
-import serviceOfferPhoto from "@/public/515698946_24696728493263694_6196605855722669004_n.jpg";
-import workshopHandsPhoto from "@/public/467733589_18310927900164899_8844470234338486002_n.jpg";
-import wheelBuildPhoto from "@/public/541515840_18341290783164899_2136127841415059329_n.jpg";
-import hubDetailPhoto from "@/public/544104536_18341290717164899_4785665621800122151_n.jpg";
 import chainLinkElement from "@/public/illustrations/chain-link.png";
 import chainElement from "@/public/illustrations/chain.png";
 import chainLubeElement from "@/public/illustrations/chain-lube.png";
@@ -71,51 +65,29 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function CampaignLandingPage({ params }: Props) {
   const { slug } = await params;
-  const campaign = await prisma.campaign.findUnique({ where: { slug } });
+  const campaign = await prisma.campaign.findUnique({
+    where: { slug },
+    include: { galleryItems: { orderBy: { sortOrder: "asc" } } },
+  });
   if (!campaign?.isActive) notFound();
 
   const primaryHref = campaign.formEnabled ? "#mam-zaujem" : `mailto:${campaign.email}`;
   const pixelId = /^\d+$/.test(process.env.NEXT_PUBLIC_META_PIXEL_ID?.trim() ?? "")
     ? process.env.NEXT_PUBLIC_META_PIXEL_ID?.trim()
     : undefined;
-  const heroImage = campaign.slug === "servis" ? serviceBikePhoto : campaign.imageUrl;
+  const heroImage = campaign.imageUrl;
   const isRemoteHero = typeof heroImage === "string" && /^https?:\/\//.test(heroImage);
-  const offerImage = campaign.slug === "servis" ? serviceOfferPhoto : campaign.offerImageUrl || campaign.imageUrl;
-  const galleryImage1 = !campaign.galleryImage1Url || campaign.galleryImage1Url === "/501092085_18330718675164899_5154079394919144617_n.jpg"
-    ? wheelBuildPhoto
-    : campaign.galleryImage1Url;
-  const galleryImage2 = campaign.galleryImage2Url || chainPhoto;
-  const galleryImage3 = !campaign.galleryImage3Url || campaign.galleryImage3Url === "/491371448_18327449569164899_1457638043555327763_n.jpg"
-    ? hubDetailPhoto
-    : campaign.galleryImage3Url;
-  const servicePhotos = [
-    {
-      src: galleryImage1,
-      alt: "Zapletené koleso s oranžovým nábojom v dielni Sambike",
-      caption: "Kolesá, ktoré sa točia ako majú.",
-      layout: "sm:col-span-7",
-    },
-    {
-      src: galleryImage2,
-      alt: "Porovnanie znečistenej a vyčistenej bicyklovej reťaze",
-      caption: "Pohon vyčistený do posledného článku.",
-      position: campaign.galleryImage2Url ? "center" : "top",
-      layout: "sm:col-span-5",
-    },
-    {
-      src: galleryImage3,
-      alt: "Oranžový náboj pripravený na montáž",
-      caption: "Nové diely, poctivo osadené.",
-      layout: "sm:col-span-5",
-    },
-    {
-      src: workshopHandsPhoto,
-      alt: "Mastné ruky po práci na bicykli v dielni",
-      caption: "Poctivá robota občas zanechá stopu.",
-      position: "center",
-      layout: "sm:col-span-7",
-    },
-  ];
+  const offerImage = campaign.offerImageUrl || campaign.imageUrl;
+  const galleryMedia = campaign.galleryItems.map((item, index) => {
+    const isLastOddItem = campaign.galleryItems.length % 2 === 1 && index === campaign.galleryItems.length - 1;
+    const isWideItem = index % 4 === 0 || index % 4 === 3;
+    return {
+      ...item,
+      label: `${campaign.name} – ${item.mediaType === "VIDEO" ? "video" : "fotografia"} zo servisu ${index + 1}`,
+      layout: isLastOddItem ? "sm:col-span-12" : isWideItem ? "sm:col-span-7" : "sm:col-span-5",
+    };
+  });
+  const galleryThumbnail = galleryMedia.find((item) => item.mediaType === "IMAGE")?.mediaUrl || offerImage;
 
   return (
     <main className="campaign-page min-h-screen bg-white text-[var(--ink)]">
@@ -138,6 +110,7 @@ export default async function CampaignLandingPage({ params }: Props) {
         <div className="mx-auto grid min-h-[calc(88svh-5rem)] max-w-[96rem] lg:grid-cols-[minmax(0,.92fr)_minmax(28rem,1.08fr)]">
           <div className="relative flex items-center overflow-hidden px-5 py-14 sm:px-8 sm:py-20 lg:px-12 lg:py-24 xl:pl-20">
             <Image src={chainLinkElement} alt="" className="pointer-events-none absolute -right-16 top-5 h-auto w-64 rotate-[8deg] opacity-35 sm:right-0 sm:top-10 sm:w-72 lg:-right-20 lg:w-80" />
+            <Image src={cranksetElement} alt="" className="pointer-events-none absolute -bottom-20 -right-16 hidden h-auto w-[26rem] opacity-30 sm:block lg:-bottom-24 lg:-right-20 lg:w-[30rem] lg:opacity-35" />
             <div className="relative z-10 max-w-2xl">
               <div className="mb-8 h-[3px] w-24 bg-[var(--accent)]" />
               <p className="text-xs font-bold uppercase tracking-[.24em] text-[var(--accent)]">{campaign.offerType} · Spišská Nová Ves</p>
@@ -160,7 +133,14 @@ export default async function CampaignLandingPage({ params }: Props) {
             <Image src={heroImage} alt={campaign.headline} fill loading="eager" unoptimized={isRemoteHero} sizes="(max-width: 1024px) 100vw, 56vw" className="object-cover saturate-[.92]" />
             <div className="absolute inset-y-0 left-0 hidden w-[5px] bg-[var(--accent)] lg:block" />
             <div className="absolute bottom-7 left-6 size-28 rotate-[-4deg] overflow-hidden rounded-full border-[6px] border-white bg-white shadow-[0_14px_40px_rgba(34,31,31,.18)] sm:bottom-10 sm:left-10 sm:size-36">
-              <Image src={wheelBuildPhoto} alt="Detail zapleteného kolesa zo servisu Sambike" fill placeholder="blur" sizes="144px" className="object-cover" />
+              <Image
+                src={galleryThumbnail}
+                alt="Detail práce zo servisu Sambike"
+                fill
+                unoptimized={/^https?:\/\//.test(galleryThumbnail)}
+                sizes="144px"
+                className="object-cover"
+              />
             </div>
             <span className="absolute bottom-36 left-5 size-4 rounded-full bg-[var(--accent)] sm:bottom-44 sm:left-9" />
             <Image src="/brand/sambike-mark.png" alt="" width={240} height={220} className="absolute bottom-7 right-7 h-auto w-20 opacity-90 sm:bottom-10 sm:right-10 sm:w-24" />
@@ -234,7 +214,7 @@ export default async function CampaignLandingPage({ params }: Props) {
         </div>
       </section>
 
-      <section className="mx-auto max-w-[88rem] px-5 pb-16 sm:px-8 lg:px-12 lg:pb-24">
+      {galleryMedia.length > 0 && <section className="mx-auto max-w-[88rem] px-5 pb-16 sm:px-8 lg:px-12 lg:pb-24">
         <div className="relative border-t border-[#d9d7d7] pt-12">
           <p className="text-xs font-bold uppercase tracking-[.22em] text-[var(--accent)]">Práca zo servisu</p>
           <div className="mt-4 grid gap-7 sm:grid-cols-[minmax(0,1fr)_15rem] sm:items-end lg:grid-cols-[minmax(0,1fr)_18rem]">
@@ -246,26 +226,36 @@ export default async function CampaignLandingPage({ params }: Props) {
           </div>
         </div>
         <div className="mt-10 grid gap-x-6 gap-y-9 sm:grid-cols-12">
-          {servicePhotos.map((photo) => (
-            <figure key={photo.caption} className={photo.layout}>
-              <div className="group relative aspect-[4/3] overflow-hidden rounded-[1.15rem] bg-[#ecebea] sm:aspect-[16/10]">
-                <Image
-                  src={photo.src}
-                  alt={photo.alt}
-                  fill
-                  placeholder={typeof photo.src === "string" ? undefined : "blur"}
-                  unoptimized={typeof photo.src === "string" && /^https?:\/\//.test(photo.src)}
-                  sizes="(max-width: 640px) 100vw, 58vw"
-                  className="object-cover transition duration-700 group-hover:scale-[1.025]"
-                  style={{ objectPosition: photo.position ?? "center" }}
-                />
+          {galleryMedia.map((item, index) => (
+            <figure key={item.id} className={item.layout}>
+              <div className={`group relative overflow-hidden rounded-[1.15rem] bg-[#ecebea] ${item.layout === "sm:col-span-12" ? "aspect-[4/3] sm:aspect-[21/9]" : "aspect-[4/3] sm:aspect-[16/10]"}`}>
+                {item.mediaType === "VIDEO" ? (
+                  <video
+                    src={item.mediaUrl}
+                    aria-label={item.label}
+                    controls
+                    muted
+                    playsInline
+                    preload="metadata"
+                    className="size-full object-cover"
+                  />
+                ) : (
+                  <Image
+                    src={item.mediaUrl}
+                    alt={item.label}
+                    fill
+                    unoptimized={/^https?:\/\//.test(item.mediaUrl)}
+                    sizes="(max-width: 640px) 100vw, 58vw"
+                    className="object-cover transition duration-700 group-hover:scale-[1.025]"
+                  />
+                )}
                 <span className="absolute right-4 top-4 size-3 rounded-full border-[3px] border-white bg-[var(--accent)] shadow-sm" />
               </div>
-              <figcaption className="mt-3 flex items-center gap-2 text-xs text-[#777474]"><span className="h-px w-5 bg-[var(--accent)]" />{photo.caption}</figcaption>
+              <figcaption className="mt-3 flex items-center gap-2 text-xs text-[#777474]"><span className="h-px w-5 bg-[var(--accent)]" />{item.mediaType === "VIDEO" ? "Video" : "Fotografia"} · {String(index + 1).padStart(2, "0")}</figcaption>
             </figure>
           ))}
         </div>
-      </section>
+      </section>}
 
       <section className="relative overflow-hidden bg-[var(--ink)] text-white">
         <Image src={cranksetElement} alt="" className="pointer-events-none absolute -right-32 -top-6 h-auto w-[26rem] opacity-20 lg:left-[34%] lg:right-auto lg:top-0 lg:w-[38rem] lg:opacity-35" />
