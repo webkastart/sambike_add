@@ -5,6 +5,7 @@ node_modules
 /dev.db-journal
 /generated/prisma
 npm-debug.log*
+tsconfig.tsbuildinfo
 .DS_Store
 *.dmg
 storage/campaign-images/

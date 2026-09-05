@@ -1,6 +1,5 @@
-import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { campaignMediaDirectory } from "@/lib/campaign-media";
+import { campaignMediaSize, isMissingCampaignMedia, readCampaignMedia } from "@/lib/campaign-media";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -11,6 +10,12 @@ const contentTypes: Record<string, string> = {
   ".webp": "image/webp",
   ".mp4": "video/mp4",
 };
+
+function responseBody(bytes: Uint8Array) {
+  const body = new Uint8Array(bytes.byteLength);
+  body.set(bytes);
+  return body.buffer;
+}
 
 function requestedRange(rangeHeader: string, size: number) {
   const match = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader);
@@ -42,7 +47,7 @@ export async function GET(
   }
 
   try {
-    const media = await readFile(path.join(campaignMediaDirectory, filename));
+    const size = await campaignMediaSize(filename);
     const headers = {
       "Accept-Ranges": "bytes",
       "Cache-Control": "public, max-age=31536000, immutable",
@@ -51,28 +56,28 @@ export async function GET(
     };
     const rangeHeader = request.headers.get("range");
     if (!rangeHeader) {
-      return new Response(media, { headers: { ...headers, "Content-Length": String(media.length) } });
+      const media = await readCampaignMedia(filename);
+      return new Response(responseBody(media), { headers: { ...headers, "Content-Length": String(media.length) } });
     }
 
-    const range = requestedRange(rangeHeader, media.length);
+    const range = requestedRange(rangeHeader, size);
     if (!range) {
       return new Response(null, {
         status: 416,
-        headers: { ...headers, "Content-Range": `bytes */${media.length}` },
+        headers: { ...headers, "Content-Range": `bytes */${size}` },
       });
     }
-    const chunk = media.subarray(range.start, range.end + 1);
-    return new Response(chunk, {
+    const chunk = await readCampaignMedia(filename, range);
+    return new Response(responseBody(chunk), {
       status: 206,
       headers: {
         ...headers,
         "Content-Length": String(chunk.length),
-        "Content-Range": `bytes ${range.start}-${range.end}/${media.length}`,
+        "Content-Range": `bytes ${range.start}-${range.end}/${size}`,
       },
     });
   } catch (error) {
-    const code = error instanceof Error && "code" in error ? error.code : null;
-    if (code === "ENOENT") {
+    if (isMissingCampaignMedia(error)) {
       return new Response("Súbor sa nenašiel.", { status: 404 });
     }
     throw error;

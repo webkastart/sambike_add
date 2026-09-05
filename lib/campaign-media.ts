@@ -1,6 +1,13 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, unlink, writeFile } from "node:fs/promises";
+import { mkdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from "@aws-sdk/client-s3";
 
 const maxImageSize = 5 * 1024 * 1024;
 const maxVideoSize = 20 * 1024 * 1024;
@@ -23,6 +30,90 @@ type GalleryMediaType = keyof typeof galleryMediaTypes;
 export type CampaignGalleryMediaType = "IMAGE" | "VIDEO";
 
 export class CampaignMediaError extends Error {}
+
+type MediaRange = {
+  start: number;
+  end: number;
+};
+
+type R2Config = {
+  bucket: string;
+  endpoint: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  keyPrefix: string;
+};
+
+let s3Client: S3Client | null = null;
+
+function optionalEnv(name: string) {
+  return process.env[name]?.trim() || "";
+}
+
+function requiredEnv(name: string) {
+  const value = optionalEnv(name);
+  if (!value) {
+    throw new CampaignMediaError(`Chýba nastavenie ${name} pre Cloudflare R2 storage.`);
+  }
+  return value;
+}
+
+function mediaStorage() {
+  return optionalEnv("CAMPAIGN_MEDIA_STORAGE").toLowerCase() || "local";
+}
+
+function r2Config(): R2Config {
+  const endpoint = optionalEnv("R2_ENDPOINT")
+    || `https://${requiredEnv("R2_ACCOUNT_ID")}.r2.cloudflarestorage.com`;
+
+  return {
+    bucket: requiredEnv("R2_BUCKET_NAME"),
+    endpoint,
+    accessKeyId: requiredEnv("R2_ACCESS_KEY_ID"),
+    secretAccessKey: requiredEnv("R2_SECRET_ACCESS_KEY"),
+    keyPrefix: optionalEnv("R2_KEY_PREFIX") || "campaign-images",
+  };
+}
+
+function r2Client(config: R2Config) {
+  s3Client ??= new S3Client({
+    region: "auto",
+    endpoint: config.endpoint,
+    credentials: {
+      accessKeyId: config.accessKeyId,
+      secretAccessKey: config.secretAccessKey,
+    },
+  });
+  return s3Client;
+}
+
+function storageKey(filename: string, config: R2Config) {
+  const prefix = config.keyPrefix.replace(/^\/+|\/+$/g, "");
+  return prefix ? `${prefix}/${filename}` : filename;
+}
+
+function isR2Storage() {
+  const storage = mediaStorage();
+  if (storage === "local") return false;
+  if (storage === "r2") return true;
+  throw new CampaignMediaError(`Neznámy campaign media storage: ${storage}. Použite "local" alebo "r2".`);
+}
+
+async function bodyBytes(body: unknown) {
+  const transformable = body as { transformToByteArray?: () => Promise<Uint8Array> } | null;
+  if (transformable?.transformToByteArray) return Buffer.from(await transformable.transformToByteArray());
+  if (body instanceof Uint8Array) return Buffer.from(body);
+  throw new CampaignMediaError("Nepodarilo sa načítať súbor z Cloudflare R2.");
+}
+
+export function isMissingCampaignMedia(error: unknown) {
+  if (!(error instanceof Error)) return false;
+  return (
+    error.name === "NoSuchKey"
+    || error.name === "NotFound"
+    || ("code" in error && error.code === "ENOENT")
+  );
+}
 
 function hasExpectedImageSignature(bytes: Uint8Array, type: ImageType) {
   if (type === "image/jpeg") {
@@ -70,8 +161,19 @@ async function saveCampaignMedia(value: File, type: GalleryMediaType) {
   }
 
   const filename = `${randomUUID()}${galleryMediaTypes[type]}`;
-  await mkdir(campaignMediaDirectory, { recursive: true });
-  await writeFile(path.join(campaignMediaDirectory, filename), bytes);
+  if (isR2Storage()) {
+    const config = r2Config();
+    await r2Client(config).send(new PutObjectCommand({
+      Bucket: config.bucket,
+      Key: storageKey(filename, config),
+      Body: bytes,
+      ContentType: type,
+      CacheControl: "public, max-age=31536000, immutable",
+    }));
+  } else {
+    await mkdir(campaignMediaDirectory, { recursive: true });
+    await writeFile(path.join(campaignMediaDirectory, filename), bytes);
+  }
   return `/uploads/${filename}`;
 }
 
@@ -103,10 +205,49 @@ export async function removeCampaignMedia(mediaUrl: string) {
   const filename = path.basename(mediaUrl);
   if (!filename || mediaUrl !== `/uploads/${filename}`) return;
 
+  if (isR2Storage()) {
+    const config = r2Config();
+    await r2Client(config).send(new DeleteObjectCommand({
+      Bucket: config.bucket,
+      Key: storageKey(filename, config),
+    }));
+    return;
+  }
+
   try {
     await unlink(path.join(campaignMediaDirectory, filename));
   } catch (error) {
-    const code = error instanceof Error && "code" in error ? error.code : null;
-    if (code !== "ENOENT") throw error;
+    if (!isMissingCampaignMedia(error)) throw error;
   }
+}
+
+export async function campaignMediaSize(filename: string) {
+  if (isR2Storage()) {
+    const config = r2Config();
+    const response = await r2Client(config).send(new HeadObjectCommand({
+      Bucket: config.bucket,
+      Key: storageKey(filename, config),
+    }));
+    if (typeof response.ContentLength !== "number") {
+      throw new CampaignMediaError("Nepodarilo sa zistiť veľkosť súboru z Cloudflare R2.");
+    }
+    return response.ContentLength;
+  }
+
+  return (await stat(path.join(campaignMediaDirectory, filename))).size;
+}
+
+export async function readCampaignMedia(filename: string, range?: MediaRange): Promise<Buffer> {
+  if (isR2Storage()) {
+    const config = r2Config();
+    const response = await r2Client(config).send(new GetObjectCommand({
+      Bucket: config.bucket,
+      Key: storageKey(filename, config),
+      Range: range ? `bytes=${range.start}-${range.end}` : undefined,
+    }));
+    return bodyBytes(response.Body);
+  }
+
+  const media = await readFile(path.join(campaignMediaDirectory, filename));
+  return range ? media.subarray(range.start, range.end + 1) : media;
 }
