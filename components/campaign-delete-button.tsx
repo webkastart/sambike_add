@@ -28,9 +28,10 @@ export function CampaignDeleteButton({
           startTransition(() => deleteAction());
         }
       }}
-      className="inline-flex size-8 items-center justify-center text-[#a56560] opacity-100 transition hover:text-[#7d2e2a] disabled:opacity-40 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100"
+      className="inline-flex h-9 items-center justify-center gap-2 rounded-xl px-3 text-xs font-semibold text-[#9a5e59] transition hover:bg-[#fff1ef] hover:text-[#7d2e2a] disabled:opacity-40"
     >
       {pending ? <LoaderCircle size={15} className="animate-spin" /> : <Trash2 size={15} />}
+      <span>{pending ? "Odstraňujem" : "Odstrániť"}</span>
     </button>
   );
 }
