@@ -82,6 +82,24 @@ async function removeCampaignMediaFiles(mediaUrls: Array<string | null | undefin
   }
 }
 
+async function cleanupUploadedCampaignMedia(mediaUrls: Array<string | null | undefined>, context: string) {
+  try {
+    await removeCampaignMediaFiles(mediaUrls);
+  } catch (error) {
+    console.error(`${context}: dočasne nahrané súbory sa nepodarilo odstrániť:`, error);
+  }
+}
+
+function redirectWithCampaignError(errorPath: string, message: string): never {
+  redirect(`${errorPath}?error=${encodeURIComponent(message)}`);
+}
+
+function uploadErrorMessage(error: unknown) {
+  if (error instanceof CampaignMediaError) return error.message;
+  console.error("Campaign media upload failed:", error);
+  return "Nahrávanie súboru zlyhalo. Skontrolujte formát a veľkosť súboru alebo to skúste znova.";
+}
+
 async function uploadedCampaignMedia(formData: FormData, errorPath: string, galleryPlaces: number) {
   const uploaded: UploadedCampaignImages = {};
   const galleryItems: Array<{ mediaType: "IMAGE" | "VIDEO"; mediaUrl: string }> = [];
@@ -110,11 +128,11 @@ async function uploadedCampaignMedia(formData: FormData, errorPath: string, gall
     }
     return { images: uploaded, galleryItems };
   } catch (error) {
-    await removeCampaignMediaFiles([...Object.values(uploaded), ...galleryItems.map((item) => item.mediaUrl)]);
-    if (error instanceof CampaignMediaError) {
-      redirect(`${errorPath}?error=${encodeURIComponent(error.message)}`);
-    }
-    throw error;
+    await cleanupUploadedCampaignMedia(
+      [...Object.values(uploaded), ...galleryItems.map((item) => item.mediaUrl)],
+      "Campaign media upload failed",
+    );
+    redirectWithCampaignError(errorPath, uploadErrorMessage(error));
   }
 }
 
@@ -153,8 +171,12 @@ export async function createCampaign(formData: FormData) {
       },
     });
   } catch (error) {
-    await removeCampaignMediaFiles([...Object.values(uploadedMedia.images), ...uploadedMedia.galleryItems.map((item) => item.mediaUrl)]);
-    throw error;
+    await cleanupUploadedCampaignMedia(
+      [...Object.values(uploadedMedia.images), ...uploadedMedia.galleryItems.map((item) => item.mediaUrl)],
+      "Campaign create failed",
+    );
+    console.error("Campaign create failed:", error);
+    redirectWithCampaignError("/admin/kampane/nova", "Kampaň sa nepodarilo uložiť. Skúste to znova alebo skontrolujte databázu.");
   }
   revalidatePath("/admin");
   redirect("/admin?created=1");
@@ -216,8 +238,12 @@ export async function updateCampaign(id: string, formData: FormData) {
       ...galleryCreates,
     ]);
   } catch (error) {
-    await removeCampaignMediaFiles([...Object.values(uploadedMedia.images), ...uploadedMedia.galleryItems.map((item) => item.mediaUrl)]);
-    throw error;
+    await cleanupUploadedCampaignMedia(
+      [...Object.values(uploadedMedia.images), ...uploadedMedia.galleryItems.map((item) => item.mediaUrl)],
+      "Campaign update failed",
+    );
+    console.error(`Campaign update ${id} failed:`, error);
+    redirectWithCampaignError(`/admin/kampane/${id}`, "Zmeny sa nepodarilo uložiť. Skúste to znova alebo skontrolujte databázu.");
   }
 
   const previousImages = campaignImageFields.map((field) => currentCampaign[field.url]);

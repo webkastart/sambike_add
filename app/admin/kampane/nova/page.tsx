@@ -17,7 +17,11 @@ export default async function NewCampaignPage({
         <h1 className="mt-2 text-3xl font-semibold tracking-[-.035em] sm:text-4xl">Vytvoriť kampaň</h1>
         <p className="mt-2 text-sm text-[#737c75]">Po uložení vznikne samostatná verejná stránka kampane.</p>
       </header>
-      {query.error && <p className="mt-7 text-sm font-medium text-[#a1433e]">{query.error}</p>}
+      {query.error && (
+        <p className="mt-7 border-l-2 border-[#a1433e] bg-[#fff7f6] px-4 py-3 text-sm font-medium text-[#8f332f]" role="alert">
+          {query.error}
+        </p>
+      )}
       <CampaignForm action={createCampaign} submitLabel="Vytvoriť kampaň" />
     </>
   );

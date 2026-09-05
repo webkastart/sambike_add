@@ -161,18 +161,28 @@ async function saveCampaignMedia(value: File, type: GalleryMediaType) {
   }
 
   const filename = `${randomUUID()}${galleryMediaTypes[type]}`;
-  if (isR2Storage()) {
-    const config = r2Config();
-    await r2Client(config).send(new PutObjectCommand({
-      Bucket: config.bucket,
-      Key: storageKey(filename, config),
-      Body: bytes,
-      ContentType: type,
-      CacheControl: "public, max-age=31536000, immutable",
-    }));
-  } else {
-    await mkdir(campaignMediaDirectory, { recursive: true });
-    await writeFile(path.join(campaignMediaDirectory, filename), bytes);
+  try {
+    if (isR2Storage()) {
+      const config = r2Config();
+      await r2Client(config).send(new PutObjectCommand({
+        Bucket: config.bucket,
+        Key: storageKey(filename, config),
+        Body: bytes,
+        ContentType: type,
+        CacheControl: "public, max-age=31536000, immutable",
+      }));
+    } else {
+      await mkdir(campaignMediaDirectory, { recursive: true });
+      await writeFile(path.join(campaignMediaDirectory, filename), bytes);
+    }
+  } catch (error) {
+    if (error instanceof CampaignMediaError) throw error;
+    console.error("Campaign media upload failed:", error);
+    throw new CampaignMediaError(
+      isR2Storage()
+        ? "Súbor sa nepodarilo nahrať do Cloudflare R2. Skontrolujte R2 bucket, access key a secret v produkčných nastaveniach."
+        : "Súbor sa nepodarilo uložiť. Skontrolujte úložisko servera alebo to skúste znova.",
+    );
   }
   return `/uploads/${filename}`;
 }

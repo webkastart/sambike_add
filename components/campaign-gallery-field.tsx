@@ -1,7 +1,9 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element -- Admin previews need blob URLs and direct load-error handling. */
+
 import { useEffect, useRef, useState } from "react";
-import { ImagePlus, Play, RotateCcw, Trash2 } from "lucide-react";
+import { ImageOff, ImagePlus, Play, RotateCcw, Trash2 } from "lucide-react";
 
 type MediaType = "IMAGE" | "VIDEO";
 
@@ -37,11 +39,37 @@ function fileMediaType(file: File): MediaType | null {
   return null;
 }
 
+function fileRejection(file: File) {
+  if (["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+    return file.size > maxImageSize ? `${file.name}: obrázok môže mať najviac 5 MB.` : "";
+  }
+  if (file.type === "video/mp4") {
+    return file.size > maxVideoSize ? `${file.name}: MP4 video môže mať najviac 20 MB.` : "";
+  }
+  return `${file.name}: podporované sú iba JPG, PNG, WebP alebo MP4.`;
+}
+
+function uniqueMessages(messages: string[]) {
+  return [...new Set(messages.filter(Boolean))].slice(0, 3).join(" ");
+}
+
 function MediaPreview({ label, mediaType, src }: { label: string; mediaType: string; src: string }) {
+  const [failedSrc, setFailedSrc] = useState("");
+  const failed = failedSrc === src;
+
+  if (failed) {
+    return (
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 px-4 text-center text-xs text-[#707a72]">
+        <ImageOff size={18} />
+        Súbor sa nepodarilo načítať
+      </div>
+    );
+  }
+
   if (mediaType === "VIDEO") {
     return (
       <>
-        <video src={src} aria-label={label} muted playsInline preload="metadata" className="absolute inset-0 size-full object-cover" />
+        <video src={src} aria-label={label} muted playsInline preload="metadata" className="absolute inset-0 size-full object-cover" onError={() => setFailedSrc(src)} />
         <span className="pointer-events-none absolute left-1/2 top-1/2 inline-flex size-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/65 text-white">
           <Play size={16} fill="currentColor" />
         </span>
@@ -50,11 +78,11 @@ function MediaPreview({ label, mediaType, src }: { label: string; mediaType: str
   }
 
   return (
-    <div
-      aria-label={label}
-      className="absolute inset-0 bg-cover bg-center"
-      role="img"
-      style={{ backgroundImage: `url(${JSON.stringify(src)})` }}
+    <img
+      src={src}
+      alt={label}
+      className="absolute inset-0 size-full object-cover"
+      onError={() => setFailedSrc(src)}
     />
   );
 }
@@ -91,19 +119,29 @@ export function CampaignGalleryField({ items }: Props) {
     const selectedSize = selectedItems.reduce((total, item) => total + item.file.size, 0);
     const candidates = Array.from(files).filter((file) => !selectedKeys.has(fileKey(file)));
     const nextFiles: Array<{ file: File; mediaType: MediaType }> = [];
+    const errors: string[] = [];
     let nextSize = selectedSize;
 
     for (const file of candidates) {
+      const rejection = fileRejection(file);
+      if (rejection) {
+        errors.push(rejection);
+        continue;
+      }
       const mediaType = fileMediaType(file);
-      if (!mediaType || nextFiles.length >= availablePlaces || nextSize + file.size > maxUploadBatchSize) continue;
+      if (!mediaType) continue;
+      if (nextFiles.length >= availablePlaces) {
+        errors.push(`Galéria môže obsahovať najviac ${maxGalleryItems} položiek.`);
+        continue;
+      }
+      if (nextSize + file.size > maxUploadBatchSize) {
+        errors.push("V jednej dávke môžete nahrať najviac 20 MB. Ďalšie súbory pridajte po uložení kampane.");
+        continue;
+      }
       nextFiles.push({ file, mediaType });
       nextSize += file.size;
     }
-    setSelectionMessage(
-      nextFiles.length < candidates.length
-        ? "Niektoré súbory neboli pridané. Skontrolujte formát, veľkosť alebo voľné miesto v galérii."
-        : "",
-    );
+    setSelectionMessage(uniqueMessages(errors));
     const additions = nextFiles.map(({ file, mediaType }) => {
       const previewUrl = URL.createObjectURL(file);
       previewUrlsRef.current.add(previewUrl);

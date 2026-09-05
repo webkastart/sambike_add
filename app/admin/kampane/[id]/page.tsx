@@ -67,7 +67,11 @@ export default async function EditCampaignPage({
         </div>
         <Link href={`/kampan/${campaign.slug}`} target="_blank" className="inline-flex w-fit items-center gap-1.5 text-sm font-medium text-[#59655c] hover:text-[var(--ink)]">Otvoriť stránku kampane <ArrowUpRight size={15} /></Link>
       </header>
-      {query.error && <p className="mt-7 text-sm font-medium text-[#a1433e]">{query.error}</p>}
+      {query.error && (
+        <p className="mt-7 border-l-2 border-[#a1433e] bg-[#fff7f6] px-4 py-3 text-sm font-medium text-[#8f332f]" role="alert">
+          {query.error}
+        </p>
+      )}
       {query.saved && <p className="mt-7 text-sm font-medium text-[#4e6a37]">Zmeny boli uložené.</p>}
       <CampaignForm campaign={campaign} action={updateAction} submitLabel="Uložiť zmeny" />
       <MetaAdSection
