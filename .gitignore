@@ -6,4 +6,5 @@ node_modules
 /generated/prisma
 npm-debug.log*
 .DS_Store
+*.dmg
 storage/campaign-images/
