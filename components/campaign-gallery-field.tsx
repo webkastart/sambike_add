@@ -2,7 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element -- Admin previews need blob URLs and direct load-error handling. */
 
-import { useEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { ImageOff, ImagePlus, Play, RotateCcw, Trash2 } from "lucide-react";
 
 type MediaType = "IMAGE" | "VIDEO";
@@ -24,10 +24,97 @@ type Props = {
   items: GalleryItem[];
 };
 
+export type PreparedGalleryMedia = {
+  mediaType: MediaType;
+  mediaUrl: string;
+};
+
+export type CampaignGalleryFieldHandle = {
+  prepareUploads: () => Promise<{ direct: boolean; items: PreparedGalleryMedia[] }>;
+};
+
 const maxGalleryItems = 20;
 const maxImageSize = 5 * 1024 * 1024;
 const maxVideoSize = 20 * 1024 * 1024;
 const maxUploadBatchSize = 20 * 1024 * 1024;
+const uploadEndpoint = "/api/campaign-media-upload";
+
+async function responseError(response: Response) {
+  if (response.status === 413) {
+    return "Server odmietol súbor pre jeho veľkosť. Video skúste nahrať znova; ak sa chyba opakuje, skontrolujte nastavenie R2 úložiska.";
+  }
+  try {
+    const body = await response.json() as { error?: string };
+    return body.error || "Nahrávanie súboru zlyhalo.";
+  } catch {
+    return "Nahrávanie súboru zlyhalo.";
+  }
+}
+
+function uploadDirectlyToStorage(file: File, uploadUrl: string, onProgress: (uploadedBytes: number) => void) {
+  return new Promise<void>((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    request.open("PUT", uploadUrl);
+    request.setRequestHeader("Content-Type", file.type);
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress(event.loaded);
+    };
+    request.onload = () => {
+      if (request.status >= 200 && request.status < 300) {
+        onProgress(file.size);
+        resolve();
+        return;
+      }
+      reject(new Error(
+        request.status === 413
+          ? "Úložisko odmietlo video pre jeho veľkosť. Nahrajte MP4 video do 20 MB."
+          : `Úložisko odmietlo nahrávanie (chyba ${request.status}). Skúste to znova.`,
+      ));
+    };
+    request.onerror = () => reject(new Error(
+      "Video sa nepodarilo odoslať do úložiska. Skontrolujte internetové pripojenie a CORS nastavenie Cloudflare R2 pre túto doménu.",
+    ));
+    request.onabort = () => reject(new Error("Nahrávanie súboru bolo prerušené."));
+    request.send(file);
+  });
+}
+
+async function uploadMediaFile(file: File, onProgress: (uploadedBytes: number) => void) {
+  const startResponse = await fetch(uploadEndpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ operation: "start", size: file.size, type: file.type }),
+  });
+  if (startResponse.status === 409) return null;
+  if (!startResponse.ok) throw new Error(await responseError(startResponse));
+
+  const start = await startResponse.json() as { filename: string; uploadUrl: string };
+  if (!start.filename || !start.uploadUrl) throw new Error("Server vrátil neplatné údaje pre nahrávanie súboru.");
+  let completed = false;
+  try {
+    await uploadDirectlyToStorage(file, start.uploadUrl, onProgress);
+
+    const completeResponse = await fetch(uploadEndpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        operation: "complete",
+        filename: start.filename,
+      }),
+    });
+    if (!completeResponse.ok) throw new Error(await responseError(completeResponse));
+    completed = true;
+    return await completeResponse.json() as PreparedGalleryMedia;
+  } finally {
+    if (!completed) {
+      void fetch(uploadEndpoint, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename: start.filename }),
+      });
+    }
+  }
+}
 
 function fileKey(file: File) {
   return `${file.name}-${file.size}-${file.lastModified}`;
@@ -87,12 +174,14 @@ function MediaPreview({ label, mediaType, src }: { label: string; mediaType: str
   );
 }
 
-export function CampaignGalleryField({ items }: Props) {
+export const CampaignGalleryField = forwardRef<CampaignGalleryFieldHandle, Props>(function CampaignGalleryField({ items }, ref) {
   const inputRef = useRef<HTMLInputElement>(null);
   const previewUrlsRef = useRef(new Set<string>());
+  const preparedUploadsRef = useRef(new Map<string, PreparedGalleryMedia>());
   const [removedIds, setRemovedIds] = useState<string[]>([]);
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
   const [selectionMessage, setSelectionMessage] = useState("");
+  const [uploadMessage, setUploadMessage] = useState("");
 
   const visibleItems = items.filter((item) => !removedIds.includes(item.id));
   const itemCount = visibleItems.length + selectedItems.length;
@@ -160,10 +249,49 @@ export function CampaignGalleryField({ items }: Props) {
       previewUrlsRef.current.delete(removedItem.previewUrl);
     }
     const nextItems = selectedItems.filter((item) => item.key !== key);
+    preparedUploadsRef.current.delete(key);
     setSelectedItems(nextItems);
     setSelectionMessage("");
     syncInputFiles(nextItems);
   }
+
+  useImperativeHandle(ref, () => ({
+    async prepareUploads() {
+      if (selectedItems.length === 0) return { direct: true, items: [] };
+
+      const totalSize = selectedItems.reduce((total, item) => total + item.file.size, 0);
+      let uploadedBeforeCurrent = 0;
+      const prepared: PreparedGalleryMedia[] = [];
+      setUploadMessage("Nahrávam súbory… 0 %");
+      try {
+        for (const item of selectedItems) {
+          const cached = preparedUploadsRef.current.get(item.key);
+          if (cached) {
+            prepared.push(cached);
+            uploadedBeforeCurrent += item.file.size;
+            continue;
+          }
+
+          const uploaded = await uploadMediaFile(item.file, (uploadedBytes) => {
+            const percentage = Math.round(((uploadedBeforeCurrent + uploadedBytes) / totalSize) * 100);
+            setUploadMessage(`Nahrávam súbory… ${percentage} %`);
+          });
+          if (!uploaded) {
+            setUploadMessage("");
+            return { direct: false, items: [] };
+          }
+          preparedUploadsRef.current.set(item.key, uploaded);
+          prepared.push(uploaded);
+          uploadedBeforeCurrent += item.file.size;
+        }
+        setUploadMessage("");
+        return { direct: true, items: prepared };
+      } catch (error) {
+        setUploadMessage("");
+        throw error;
+      }
+    },
+  }), [selectedItems]);
 
   return (
     <div>
@@ -260,7 +388,8 @@ export function CampaignGalleryField({ items }: Props) {
         )}
       </div>
       <p className="mt-2 text-xs text-[#89918b]">JPG, PNG alebo WebP do 5 MB; MP4 do 20 MB. V jednej dávke najviac 20 MB.</p>
+      {uploadMessage && <p className="mt-2 text-xs font-medium text-[#35623d]" role="status">{uploadMessage}</p>}
       {selectionMessage && <p className="mt-2 text-xs font-medium text-[#9b5b23]" role="status">{selectionMessage}</p>}
     </div>
   );
-}
+});

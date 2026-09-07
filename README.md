@@ -63,6 +63,27 @@ zobrazené SPF a DKIM záznamy do DNS a počkajte na stav `Verified`. Potom pou�
 `NEXT_PUBLIC_META_PIXEL_ID` je voliteľné. Ak zostane prázdne, landing page funguje
 bez Meta Pixelu; interné udalosti a UTM atribúcia sa naďalej zachytávajú.
 
+## Cloudflare R2 pre fotografie a videá
+
+V produkcii nastavte `CAMPAIGN_MEDIA_STORAGE="r2"` a všetky premenné `R2_*`
+uvedené v `.env.example`. Galéria nahráva súbory priamo z prehliadača cez
+krátkodobú podpísanú URL, aby video neblokoval limit veľkosti požiadavky hostingu.
+
+V nastavení R2 bucketu povoľte CORS pre produkčnú doménu:
+
+```json
+[
+  {
+    "AllowedOrigins": ["https://sambike.webkastart.sk"],
+    "AllowedMethods": ["PUT"],
+    "AllowedHeaders": ["Content-Type"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+Ak sa produkčná doména zmení, upravte rovnakým spôsobom aj `AllowedOrigins`.
+
 ## Facebook a Instagram reklamy
 
 Administrácia vie pri každej internej kampani vytvoriť kompletnú Meta reklamu,

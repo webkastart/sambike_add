@@ -8,6 +8,7 @@ import {
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const maxImageSize = 5 * 1024 * 1024;
 const maxVideoSize = 20 * 1024 * 1024;
@@ -25,7 +26,7 @@ const galleryMediaTypes = {
 } as const;
 
 type ImageType = keyof typeof imageTypes;
-type GalleryMediaType = keyof typeof galleryMediaTypes;
+export type GalleryMediaType = keyof typeof galleryMediaTypes;
 
 export type CampaignGalleryMediaType = "IMAGE" | "VIDEO";
 
@@ -79,6 +80,7 @@ function r2Client(config: R2Config) {
   s3Client ??= new S3Client({
     region: "auto",
     endpoint: config.endpoint,
+    requestChecksumCalculation: "WHEN_REQUIRED",
     credentials: {
       accessKeyId: config.accessKeyId,
       secretAccessKey: config.secretAccessKey,
@@ -137,6 +139,30 @@ function hasExpectedSignature(bytes: Uint8Array, type: GalleryMediaType) {
   return hasExpectedImageSignature(bytes, type);
 }
 
+function mediaTypeForContentType(type: GalleryMediaType): CampaignGalleryMediaType {
+  return type === "video/mp4" ? "VIDEO" : "IMAGE";
+}
+
+function validateCampaignMediaSize(type: GalleryMediaType, size: number) {
+  const maxSize = type === "video/mp4" ? maxVideoSize : maxImageSize;
+  if (!Number.isSafeInteger(size) || size <= 0 || size > maxSize) {
+    throw new CampaignMediaError(
+      type === "video/mp4" ? "MP4 video môže mať najviac 20 MB." : "Obrázok môže mať najviac 5 MB.",
+    );
+  }
+}
+
+function campaignMediaFilename(mediaUrl: string) {
+  const filename = path.basename(mediaUrl);
+  if (
+    mediaUrl !== `/uploads/${filename}`
+    || !/^[a-f0-9-]+\.(jpg|png|webp|mp4)$/.test(filename)
+  ) {
+    throw new CampaignMediaError("Nahraný súbor má neplatnú adresu.");
+  }
+  return filename;
+}
+
 export function hasCampaignMediaUpload(value: FormDataEntryValue | null): value is File {
   return value instanceof File && value.size > 0;
 }
@@ -146,12 +172,7 @@ export function hasCampaignImageUpload(value: FormDataEntryValue | null): value 
 }
 
 async function saveCampaignMedia(value: File, type: GalleryMediaType) {
-  const maxSize = type === "video/mp4" ? maxVideoSize : maxImageSize;
-  if (value.size > maxSize) {
-    throw new CampaignMediaError(
-      type === "video/mp4" ? "MP4 video môže mať najviac 20 MB." : "Obrázok môže mať najviac 5 MB.",
-    );
-  }
+  validateCampaignMediaSize(type, value.size);
 
   const bytes = new Uint8Array(await value.arrayBuffer());
   if (!hasExpectedSignature(bytes, type)) {
@@ -202,11 +223,51 @@ export async function saveCampaignGalleryMedia(value: FormDataEntryValue | null)
   }
 
   const type = value.type as GalleryMediaType;
-  const mediaType: CampaignGalleryMediaType = type === "video/mp4" ? "VIDEO" : "IMAGE";
+  const mediaType = mediaTypeForContentType(type);
   return {
     mediaUrl: await saveCampaignMedia(value, type),
     mediaType,
   };
+}
+
+export async function createCampaignMediaUploadUrl(type: GalleryMediaType, size: number) {
+  if (!(type in galleryMediaTypes)) {
+    throw new CampaignMediaError("Nahrajte obrázok JPG, PNG, WebP alebo MP4 video.");
+  }
+  validateCampaignMediaSize(type, size);
+  if (!isR2Storage()) return null;
+
+  const config = r2Config();
+  const filename = `${randomUUID()}${galleryMediaTypes[type]}`;
+  const uploadUrl = await getSignedUrl(
+    r2Client(config),
+    new PutObjectCommand({
+      Bucket: config.bucket,
+      Key: storageKey(filename, config),
+      ContentType: type,
+    }),
+    { expiresIn: 10 * 60 },
+  );
+  return { filename, uploadUrl };
+}
+
+export async function validateUploadedCampaignGalleryMedia(mediaUrl: string, mediaType: CampaignGalleryMediaType) {
+  const filename = campaignMediaFilename(mediaUrl);
+  const extension = path.extname(filename).toLowerCase();
+  const type = Object.entries(galleryMediaTypes).find(([, expectedExtension]) => expectedExtension === extension)?.[0] as GalleryMediaType | undefined;
+  if (!type || mediaTypeForContentType(type) !== mediaType) {
+    throw new CampaignMediaError("Nahraný súbor má neplatný formát.");
+  }
+
+  const size = await campaignMediaSize(filename);
+  validateCampaignMediaSize(type, size);
+  const signature = await readCampaignMedia(filename, { start: 0, end: Math.min(11, size - 1) });
+  if (!hasExpectedSignature(signature, type)) {
+    throw new CampaignMediaError(
+      type === "video/mp4" ? "Súbor nie je platné MP4 video." : "Súbor nie je platný obrázok JPG, PNG alebo WebP.",
+    );
+  }
+  return { mediaType, mediaUrl, size };
 }
 
 export async function removeCampaignMedia(mediaUrl: string) {

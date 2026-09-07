@@ -1,5 +1,13 @@
+"use client";
+
 import type { Campaign, CampaignGalleryItem } from "@/generated/prisma/client";
-import { CampaignGalleryField } from "@/components/campaign-gallery-field";
+import { AlertCircle } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { useFormStatus } from "react-dom";
+import {
+  CampaignGalleryField,
+  type CampaignGalleryFieldHandle,
+} from "@/components/campaign-gallery-field";
 import { CampaignImageField } from "@/components/campaign-image-field";
 
 type Props = {
@@ -47,9 +55,57 @@ const fields: CampaignField[] = [
   { name: "email", label: "E-mail", placeholder: "ahoj@sambike.sk", required: true, type: "email" },
 ];
 
-export function CampaignForm({ campaign, action, submitLabel }: Props) {
+function CampaignSubmitButton({ label }: { label: string }) {
+  const { pending } = useFormStatus();
   return (
-    <form action={action} className="mt-10 max-w-4xl">
+    <button
+      className="rounded-[3px] bg-[var(--accent-dark)] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#075eac] disabled:cursor-wait disabled:opacity-60"
+      type="submit"
+      disabled={pending}
+    >
+      {pending ? "Nahrávam a ukladám…" : label}
+    </button>
+  );
+}
+
+export function CampaignForm({ campaign, action, submitLabel }: Props) {
+  const galleryRef = useRef<CampaignGalleryFieldHandle>(null);
+  const uploadErrorRef = useRef<HTMLDivElement>(null);
+  const [uploadError, setUploadError] = useState("");
+
+  useEffect(() => {
+    if (!uploadError) return;
+    uploadErrorRef.current?.focus();
+    uploadErrorRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [uploadError]);
+
+  async function submitCampaign(formData: FormData) {
+    setUploadError("");
+    try {
+      const prepared = await galleryRef.current?.prepareUploads();
+      if (prepared?.direct) {
+        formData.delete("galleryMediaFiles");
+        for (const item of prepared.items) {
+          formData.append("galleryUploadedMedia", JSON.stringify(item));
+        }
+      }
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : "Nahrávanie súboru zlyhalo. Skúste to znova.");
+      return;
+    }
+
+    try {
+      await action(formData);
+    } catch (error) {
+      console.error("Campaign submission failed:", error);
+      setUploadError(
+        "Kampaň sa neuložila, pretože server odmietol požiadavku. Vybrané súbory zostali vo formulári — skúste uloženie znova alebo skontrolujte nastavenie R2 úložiska.",
+      );
+    }
+  }
+
+  return (
+    <form action={submitCampaign} className="mt-10 max-w-4xl">
       <div className="grid gap-x-12 gap-y-7 md:grid-cols-2">
         {fields.map((field) => (
           <label key={field.name} className={field.wide ? "md:col-span-2" : ""}>
@@ -94,7 +150,7 @@ export function CampaignForm({ campaign, action, submitLabel }: Props) {
           </div>
         ))}
         <div className="md:col-span-2 border-t border-[var(--line)] pt-7">
-          <CampaignGalleryField items={campaign?.galleryItems ?? []} />
+          <CampaignGalleryField ref={galleryRef} items={campaign?.galleryItems ?? []} />
         </div>
       </div>
 
@@ -110,11 +166,23 @@ export function CampaignForm({ campaign, action, submitLabel }: Props) {
       </div>
 
       <div className="mt-10 flex items-center gap-4">
-        <button className="rounded-[3px] bg-[var(--accent-dark)] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#075eac]" type="submit">
-          {submitLabel}
-        </button>
+        <CampaignSubmitButton label={submitLabel} />
         <span className="text-xs text-[#89918b]">Diakritiku a medzery v adrese upravíme automaticky.</span>
       </div>
+      {uploadError && (
+        <div
+          ref={uploadErrorRef}
+          className="mt-4 flex max-w-3xl items-start gap-3 border-l-2 border-[#a1433e] bg-[#fff7f6] px-4 py-3 text-[#8f332f] outline-none"
+          role="alert"
+          tabIndex={-1}
+        >
+          <AlertCircle className="mt-0.5 shrink-0" size={18} aria-hidden="true" />
+          <div>
+            <p className="text-sm font-semibold">Video alebo kampaň sa nepodarilo uložiť</p>
+            <p className="mt-1 text-sm leading-relaxed">{uploadError}</p>
+          </div>
+        </div>
+      )}
     </form>
   );
 }
