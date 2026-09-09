@@ -2,7 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element -- Admin previews need blob URLs and direct load-error handling. */
 
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, type SyntheticEvent, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { ImageOff, ImagePlus, Play, RotateCcw, Trash2 } from "lucide-react";
 
 type MediaType = "IMAGE" | "VIDEO";
@@ -140,6 +140,15 @@ function uniqueMessages(messages: string[]) {
   return [...new Set(messages.filter(Boolean))].slice(0, 3).join(" ");
 }
 
+function loadVideoPreview(event: SyntheticEvent<HTMLVideoElement>) {
+  const video = event.currentTarget;
+  if (!Number.isFinite(video.duration) || video.duration <= 0) return;
+
+  // A frame at exactly 0 s is not painted reliably by Safari and Chromium.
+  // Seeking slightly forward makes the browser fetch and render a real preview.
+  video.currentTime = Math.min(0.1, video.duration / 2);
+}
+
 function MediaPreview({ label, mediaType, src }: { label: string; mediaType: string; src: string }) {
   const [failedSrc, setFailedSrc] = useState("");
   const failed = failedSrc === src;
@@ -156,7 +165,16 @@ function MediaPreview({ label, mediaType, src }: { label: string; mediaType: str
   if (mediaType === "VIDEO") {
     return (
       <>
-        <video src={src} aria-label={label} muted playsInline preload="metadata" className="absolute inset-0 size-full object-cover" onError={() => setFailedSrc(src)} />
+        <video
+          src={src}
+          aria-label={label}
+          muted
+          playsInline
+          preload="metadata"
+          className="absolute inset-0 size-full object-cover"
+          onLoadedMetadata={loadVideoPreview}
+          onError={() => setFailedSrc(src)}
+        />
         <span className="pointer-events-none absolute left-1/2 top-1/2 inline-flex size-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/65 text-white">
           <Play size={16} fill="currentColor" />
         </span>
