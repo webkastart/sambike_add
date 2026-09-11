@@ -130,13 +130,14 @@ export default async function CampaignLandingPage({ params }: Props) {
           </div>
 
           <div className="relative min-h-[31rem] overflow-hidden bg-[#ecebea] lg:min-h-[calc(88svh-5rem)]">
-            <Image src={heroImage} alt={campaign.headline} fill loading="eager" unoptimized={isRemoteHero} sizes="(max-width: 1024px) 100vw, 56vw" className="object-cover saturate-[.92]" />
+            <Image src={heroImage} alt={campaign.headline} fill loading="eager" quality={90} unoptimized={isRemoteHero} sizes="(max-width: 1024px) 100vw, 56vw" className="object-cover saturate-[.92]" />
             <div className="absolute inset-y-0 left-0 hidden w-[5px] bg-[var(--accent)] lg:block" />
             <div className="absolute bottom-7 left-6 size-28 rotate-[-4deg] overflow-hidden rounded-full border-[6px] border-white bg-white shadow-[0_14px_40px_rgba(34,31,31,.18)] sm:bottom-10 sm:left-10 sm:size-36">
               <Image
                 src={galleryThumbnail}
                 alt="Detail práce zo servisu Sambike"
                 fill
+                quality={90}
                 unoptimized={/^https?:\/\//.test(galleryThumbnail)}
                 sizes="144px"
                 className="object-cover"
@@ -198,7 +199,7 @@ export default async function CampaignLandingPage({ params }: Props) {
         <div className="relative pb-3 pl-3">
           <div className="absolute inset-x-0 bottom-0 top-3 rounded-[1.4rem] border-2 border-[var(--accent)]" />
           <div className="relative aspect-[4/3] overflow-hidden rounded-[1.4rem] bg-[#ecebea]">
-            <Image src={offerImage} alt={campaign.headline} fill unoptimized={typeof offerImage === "string" && /^https?:\/\//.test(offerImage)} sizes="(max-width: 1024px) 100vw, 50vw" className="object-cover" />
+            <Image src={offerImage} alt={campaign.headline} fill quality={90} unoptimized={typeof offerImage === "string" && /^https?:\/\//.test(offerImage)} sizes="(max-width: 1024px) 100vw, 50vw" className="object-cover" />
           </div>
           <Image src={serviceToolsElement} alt="" className="absolute -bottom-12 -right-12 h-auto w-52 rotate-[-3deg] drop-shadow-[0_10px_18px_rgba(34,31,31,.16)] sm:-bottom-16 sm:-right-16 sm:w-60" />
         </div>
@@ -244,6 +245,7 @@ export default async function CampaignLandingPage({ params }: Props) {
                     src={item.mediaUrl}
                     alt={item.label}
                     fill
+                    quality={90}
                     unoptimized={/^https?:\/\//.test(item.mediaUrl)}
                     sizes="(max-width: 640px) 100vw, 58vw"
                     className="object-cover transition duration-700 group-hover:scale-[1.025]"

@@ -66,8 +66,10 @@ bez Meta Pixelu; interné udalosti a UTM atribúcia sa naďalej zachytávajú.
 ## Cloudflare R2 pre fotografie a videá
 
 V produkcii nastavte `CAMPAIGN_MEDIA_STORAGE="r2"` a všetky premenné `R2_*`
-uvedené v `.env.example`. Galéria nahráva súbory priamo z prehliadača cez
-krátkodobú podpísanú URL, aby video neblokoval limit veľkosti požiadavky hostingu.
+uvedené v `.env.example`. Všetky fotografie aj videá sa nahrávajú priamo z
+prehliadača cez krátkodobú podpísanú URL, aby ich neblokoval limit veľkosti
+požiadavky hostingu. Súbory sa ukladajú v pôvodnej kvalite bez kompresie alebo
+prekódovania (fotografie do 50 MB, MP4 videá do 500 MB).
 
 V nastavení R2 bucketu povoľte CORS pre produkčnú doménu:
 

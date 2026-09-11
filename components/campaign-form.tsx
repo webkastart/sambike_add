@@ -8,7 +8,10 @@ import {
   CampaignGalleryField,
   type CampaignGalleryFieldHandle,
 } from "@/components/campaign-gallery-field";
-import { CampaignImageField } from "@/components/campaign-image-field";
+import {
+  CampaignImageField,
+  type CampaignImageFieldHandle,
+} from "@/components/campaign-image-field";
 
 type Props = {
   campaign?: Campaign & { galleryItems?: CampaignGalleryItem[] };
@@ -30,6 +33,7 @@ const imageFields = [
     label: "Úvodný obrázok",
     description: "Veľká fotografia na pozadí pri hlavnom nadpise.",
     fileName: "imageFile",
+    uploadedName: "imageUploadedMedia",
     urlName: "imageUrl",
     campaignKey: "imageUrl",
     fallbackUrl: undefined,
@@ -38,6 +42,7 @@ const imageFields = [
     label: "Obrázok pri ponuke",
     description: "Fotografia vedľa názvu, popisu a ceny kampane.",
     fileName: "offerImageFile",
+    uploadedName: "offerImageUploadedMedia",
     urlName: "offerImageUrl",
     campaignKey: "offerImageUrl",
     fallbackUrl: undefined,
@@ -70,6 +75,7 @@ function CampaignSubmitButton({ label }: { label: string }) {
 
 export function CampaignForm({ campaign, action, submitLabel }: Props) {
   const galleryRef = useRef<CampaignGalleryFieldHandle>(null);
+  const imageRefs = useRef<Record<string, CampaignImageFieldHandle | null>>({});
   const uploadErrorRef = useRef<HTMLDivElement>(null);
   const [uploadError, setUploadError] = useState("");
 
@@ -82,6 +88,16 @@ export function CampaignForm({ campaign, action, submitLabel }: Props) {
   async function submitCampaign(formData: FormData) {
     setUploadError("");
     try {
+      for (const field of imageFields) {
+        const preparedImage = await imageRefs.current[field.fileName]?.prepareUpload();
+        if (preparedImage?.direct) {
+          formData.delete(field.fileName);
+          if (preparedImage.item) {
+            formData.set(field.uploadedName, JSON.stringify(preparedImage.item));
+          }
+        }
+      }
+
       const prepared = await galleryRef.current?.prepareUploads();
       if (prepared?.direct) {
         formData.delete("galleryMediaFiles");
@@ -137,6 +153,7 @@ export function CampaignForm({ campaign, action, submitLabel }: Props) {
         {imageFields.map((field, index) => (
           <div key={field.urlName} className={`md:col-span-2 ${index > 0 ? "border-t border-[var(--line)] pt-7" : ""}`}>
             <CampaignImageField
+              ref={(handle) => { imageRefs.current[field.fileName] = handle; }}
               label={field.label}
               description={field.description}
               fileName={field.fileName}

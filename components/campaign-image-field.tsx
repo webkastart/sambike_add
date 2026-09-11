@@ -2,8 +2,14 @@
 
 /* eslint-disable @next/next/no-img-element -- Admin previews need blob URLs and direct load-error handling. */
 
-import { useEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { ImageOff, ImagePlus, X } from "lucide-react";
+import { type PreparedCampaignMedia, uploadCampaignMedia } from "@/lib/campaign-media-client";
+import {
+  campaignImageSizeLabel,
+  maxCampaignImageSize,
+  maxFallbackUploadBatchSize,
+} from "@/lib/campaign-media-limits";
 
 type Props = {
   description: string;
@@ -13,21 +19,30 @@ type Props = {
   currentImageUrl?: string;
 };
 
-const maxImageSize = 5 * 1024 * 1024;
 const allowedImageTypes = ["image/jpeg", "image/png", "image/webp"];
+
+export type CampaignImageFieldHandle = {
+  prepareUpload: () => Promise<{ direct: boolean; item: PreparedCampaignMedia | null }>;
+};
 
 function imageSelectionError(file: File) {
   if (!allowedImageTypes.includes(file.type)) return "Vyberte obrázok vo formáte JPG, PNG alebo WebP.";
-  if (file.size > maxImageSize) return "Obrázok je príliš veľký. Nahrajte súbor do 5 MB.";
+  if (file.size > maxCampaignImageSize) return `Obrázok je príliš veľký. Nahrajte súbor do ${campaignImageSizeLabel}.`;
   return "";
 }
 
-export function CampaignImageField({ description, fileName: fileInputName, label, urlName, currentImageUrl }: Props) {
+export const CampaignImageField = forwardRef<CampaignImageFieldHandle, Props>(function CampaignImageField(
+  { description, fileName: fileInputName, label, urlName, currentImageUrl },
+  ref,
+) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const preparedUploadRef = useRef<{ key: string; item: PreparedCampaignMedia } | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileName, setFileName] = useState("");
   const [failedImageUrl, setFailedImageUrl] = useState("");
   const [selectionMessage, setSelectionMessage] = useState("");
+  const [uploadMessage, setUploadMessage] = useState("");
   const displayedImage = previewUrl ?? currentImageUrl;
   const imageFailed = Boolean(displayedImage && failedImageUrl === displayedImage);
 
@@ -42,14 +57,17 @@ export function CampaignImageField({ description, fileName: fileInputName, label
 
     if (!file) {
       setPreviewUrl(null);
+      setSelectedFile(null);
       setFileName("");
       setSelectionMessage("");
+      preparedUploadRef.current = null;
       return;
     }
 
     const error = imageSelectionError(file);
     if (error) {
       setPreviewUrl(null);
+      setSelectedFile(null);
       setFileName(file.name);
       setSelectionMessage(error);
       if (inputRef.current) inputRef.current.value = "";
@@ -57,14 +75,46 @@ export function CampaignImageField({ description, fileName: fileInputName, label
     }
 
     setPreviewUrl(URL.createObjectURL(file));
+    setSelectedFile(file);
     setFileName(file.name);
     setSelectionMessage("");
+    preparedUploadRef.current = null;
   }
 
   function clearSelection() {
     if (inputRef.current) inputRef.current.value = "";
     selectImage();
   }
+
+  useImperativeHandle(ref, () => ({
+    async prepareUpload() {
+      if (!selectedFile) return { direct: true, item: null };
+
+      const key = `${selectedFile.name}-${selectedFile.size}-${selectedFile.lastModified}`;
+      if (preparedUploadRef.current?.key === key) {
+        return { direct: true, item: preparedUploadRef.current.item };
+      }
+
+      setUploadMessage("Nahrávam originál… 0 %");
+      try {
+        const uploaded = await uploadCampaignMedia(selectedFile, (uploadedBytes) => {
+          const percentage = Math.round((uploadedBytes / selectedFile.size) * 100);
+          setUploadMessage(`Nahrávam originál… ${percentage} %`);
+        });
+        if (!uploaded) {
+          if (selectedFile.size > maxFallbackUploadBatchSize) {
+            throw new Error("Pre originálne veľké obrázky musí byť nastavené Cloudflare R2 úložisko. Lokálne nahrávanie môže mať najviac 20 MB.");
+          }
+          return { direct: false, item: null };
+        }
+        if (uploaded.mediaType !== "IMAGE") throw new Error("Úložisko vrátilo neplatný typ obrázka.");
+        preparedUploadRef.current = { key, item: uploaded };
+        return { direct: true, item: uploaded };
+      } finally {
+        setUploadMessage("");
+      }
+    },
+  }), [selectedFile]);
 
   return (
     <div className="md:col-span-2">
@@ -108,8 +158,9 @@ export function CampaignImageField({ description, fileName: fileInputName, label
               </button>
             )}
           </div>
-          <p className="mt-1 text-xs text-[#89918b]">JPG, PNG alebo WebP, najviac 5 MB.</p>
+          <p className="mt-1 text-xs text-[#89918b]">Originál bez kompresie · JPG, PNG alebo WebP do {campaignImageSizeLabel}.</p>
           {fileName && <p className="mt-1 max-w-sm truncate text-xs font-medium text-[#5f6a62]">{fileName}</p>}
+          {uploadMessage && <p className="mt-2 text-xs font-medium text-[#35623d]" role="status">{uploadMessage}</p>}
           {selectionMessage && <p className="mt-2 text-xs font-medium text-[#a1433e]" role="alert">{selectionMessage}</p>}
         </div>
       </div>
@@ -126,4 +177,4 @@ export function CampaignImageField({ description, fileName: fileInputName, label
       </label>
     </div>
   );
-}
+});

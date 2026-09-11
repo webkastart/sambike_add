@@ -15,8 +15,9 @@ import {
   removeCampaignMedia,
   saveCampaignGalleryMedia,
   saveCampaignImage,
-  validateUploadedCampaignGalleryMedia,
+  validateUploadedCampaignMedia,
 } from "@/lib/campaign-media";
+import { maxFallbackUploadBatchSize } from "@/lib/campaign-media-limits";
 
 function text(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
@@ -41,13 +42,12 @@ export async function updateLeadNotificationRecipients(formData: FormData) {
 }
 
 const campaignImageFields = [
-  { file: "imageFile", url: "imageUrl" },
-  { file: "offerImageFile", url: "offerImageUrl" },
+  { file: "imageFile", uploaded: "imageUploadedMedia", url: "imageUrl" },
+  { file: "offerImageFile", uploaded: "offerImageUploadedMedia", url: "offerImageUrl" },
 ] as const;
 
 const legacyCampaignImageUrlFields = ["galleryImage1Url", "galleryImage2Url", "galleryImage3Url"] as const;
 const maxGalleryItems = 20;
-const maxUploadBatchSize = 20 * 1024 * 1024;
 
 type CampaignImageUrlField = (typeof campaignImageFields)[number]["url"];
 type UploadedCampaignImages = Partial<Record<CampaignImageUrlField, string>>;
@@ -76,6 +76,24 @@ function hasRequiredCampaignData(data: ReturnType<typeof campaignInput>, hasImag
     .every(([, value]) => Boolean(value));
 
   return hasTextData && (Boolean(data.imageUrl) || hasImage);
+}
+
+function hasSubmittedCampaignImage(formData: FormData) {
+  const heroField = campaignImageFields[0];
+  return (
+    hasCampaignImageUpload(formData.get(heroField.file))
+    || typeof formData.get(heroField.uploaded) === "string"
+  );
+}
+
+function preparedMedia(value: FormDataEntryValue | null) {
+  if (typeof value !== "string") throw new CampaignMediaError("Nahraný súbor má neplatné údaje.");
+
+  try {
+    return JSON.parse(value) as { mediaType?: unknown; mediaUrl?: unknown };
+  } catch {
+    throw new CampaignMediaError("Nahraný súbor má neplatné údaje.");
+  }
 }
 
 async function removeCampaignMediaFiles(mediaUrls: Array<string | null | undefined>) {
@@ -107,16 +125,20 @@ async function uploadedCampaignMedia(formData: FormData, errorPath: string, gall
   const galleryItems: Array<{ mediaType: "IMAGE" | "VIDEO"; mediaUrl: string }> = [];
 
   try {
-    let preparedUploadSize = 0;
-    for (const value of formData.getAll("galleryUploadedMedia")) {
-      if (typeof value !== "string") throw new CampaignMediaError("Nahraný súbor má neplatné údaje.");
+    for (const field of campaignImageFields) {
+      const value = formData.get(field.uploaded);
+      if (value === null) continue;
 
-      let input: { mediaType?: unknown; mediaUrl?: unknown };
-      try {
-        input = JSON.parse(value) as { mediaType?: unknown; mediaUrl?: unknown };
-      } catch {
-        throw new CampaignMediaError("Nahraný súbor má neplatné údaje.");
+      const input = preparedMedia(value);
+      if (input.mediaType !== "IMAGE" || typeof input.mediaUrl !== "string") {
+        throw new CampaignMediaError("Nahraný obrázok má neplatné údaje.");
       }
+      const item = await validateUploadedCampaignMedia(input.mediaUrl, "IMAGE");
+      uploaded[field.url] = item.mediaUrl;
+    }
+
+    for (const value of formData.getAll("galleryUploadedMedia")) {
+      const input = preparedMedia(value);
       if (
         (input.mediaType !== "IMAGE" && input.mediaType !== "VIDEO")
         || typeof input.mediaUrl !== "string"
@@ -129,11 +151,10 @@ async function uploadedCampaignMedia(formData: FormData, errorPath: string, gall
         );
       }
 
-      const item = await validateUploadedCampaignGalleryMedia(
+      const item = await validateUploadedCampaignMedia(
         input.mediaUrl,
         input.mediaType as CampaignGalleryMediaType,
       );
-      preparedUploadSize += item.size;
       galleryItems.push({ mediaType: item.mediaType, mediaUrl: item.mediaUrl });
     }
 
@@ -141,12 +162,15 @@ async function uploadedCampaignMedia(formData: FormData, errorPath: string, gall
       ...campaignImageFields.map((field) => formData.get(field.file)),
       ...formData.getAll("galleryMediaFiles"),
     ].filter(hasCampaignMediaUpload);
-    const uploadSize = preparedUploadSize + uploadValues.reduce((total, file) => total + file.size, 0);
-    if (uploadSize > maxUploadBatchSize) {
+    const uploadSize = uploadValues.reduce((total, file) => total + file.size, 0);
+    if (uploadSize > maxFallbackUploadBatchSize) {
       throw new CampaignMediaError("Naraz môžete nahrať najviac 20 MB. Ďalšie súbory pridajte po uložení kampane.");
     }
 
     for (const field of campaignImageFields) {
+      if (uploaded[field.url] && hasCampaignMediaUpload(formData.get(field.file))) {
+        throw new CampaignMediaError("Obrázok bol odoslaný duplicitne. Obnovte stránku a skúste to znova.");
+      }
       const imageUrl = await saveCampaignImage(formData.get(field.file));
       if (imageUrl) uploaded[field.url] = imageUrl;
     }
@@ -181,7 +205,7 @@ function campaignImageData(
 
 export async function createCampaign(formData: FormData) {
   const data = campaignInput(formData);
-  const hasImage = hasCampaignImageUpload(formData.get("imageFile"));
+  const hasImage = hasSubmittedCampaignImage(formData);
   if (!hasRequiredCampaignData(data, hasImage)) {
     redirect("/admin/kampane/nova?error=Vyplňte+všetky+povinné+polia.");
   }
@@ -226,7 +250,7 @@ export async function updateCampaign(id: string, formData: FormData) {
   if (currentCampaign.metaAd?.metaCampaignId && data.slug !== currentCampaign.slug) {
     redirect(`/admin/kampane/${id}?error=Adresu+stránky+nie+je+možné+zmeniť,+kým+je+na+ňu+napojená+Meta+reklama.`);
   }
-  const hasImage = hasCampaignImageUpload(formData.get("imageFile"));
+  const hasImage = hasSubmittedCampaignImage(formData);
   if (!hasRequiredCampaignData(data, hasImage || Boolean(currentCampaign.imageUrl))) {
     redirect(`/admin/kampane/${id}?error=Vyplňte+všetky+povinné+polia.`);
   }

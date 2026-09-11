@@ -9,9 +9,13 @@ import {
   S3Client,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import {
+  campaignImageSizeLabel,
+  campaignVideoSizeLabel,
+  maxCampaignImageSize,
+  maxCampaignVideoSize,
+} from "@/lib/campaign-media-limits";
 
-const maxImageSize = 5 * 1024 * 1024;
-const maxVideoSize = 20 * 1024 * 1024;
 export const campaignMediaDirectory = path.join(process.cwd(), "storage", "campaign-images");
 
 const imageTypes = {
@@ -144,10 +148,12 @@ function mediaTypeForContentType(type: GalleryMediaType): CampaignGalleryMediaTy
 }
 
 function validateCampaignMediaSize(type: GalleryMediaType, size: number) {
-  const maxSize = type === "video/mp4" ? maxVideoSize : maxImageSize;
+  const maxSize = type === "video/mp4" ? maxCampaignVideoSize : maxCampaignImageSize;
   if (!Number.isSafeInteger(size) || size <= 0 || size > maxSize) {
     throw new CampaignMediaError(
-      type === "video/mp4" ? "MP4 video môže mať najviac 20 MB." : "Obrázok môže mať najviac 5 MB.",
+      type === "video/mp4"
+        ? `MP4 video môže mať najviac ${campaignVideoSizeLabel}.`
+        : `Obrázok môže mať najviac ${campaignImageSizeLabel}.`,
     );
   }
 }
@@ -246,12 +252,12 @@ export async function createCampaignMediaUploadUrl(type: GalleryMediaType, size:
       Key: storageKey(filename, config),
       ContentType: type,
     }),
-    { expiresIn: 10 * 60 },
+    { expiresIn: 60 * 60 },
   );
   return { filename, uploadUrl };
 }
 
-export async function validateUploadedCampaignGalleryMedia(mediaUrl: string, mediaType: CampaignGalleryMediaType) {
+export async function validateUploadedCampaignMedia(mediaUrl: string, mediaType: CampaignGalleryMediaType) {
   const filename = campaignMediaFilename(mediaUrl);
   const extension = path.extname(filename).toLowerCase();
   const type = Object.entries(galleryMediaTypes).find(([, expectedExtension]) => expectedExtension === extension)?.[0] as GalleryMediaType | undefined;

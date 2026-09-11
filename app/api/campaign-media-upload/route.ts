@@ -3,7 +3,7 @@ import {
   createCampaignMediaUploadUrl,
   type GalleryMediaType,
   removeCampaignMedia,
-  validateUploadedCampaignGalleryMedia,
+  validateUploadedCampaignMedia,
 } from "@/lib/campaign-media";
 
 export const runtime = "nodejs";
@@ -61,13 +61,26 @@ export async function POST(request: Request) {
     }
 
     if (body.operation === "complete") {
-      if (!validUploadTarget(body.filename)) {
+      if (
+        !validUploadTarget(body.filename)
+        || typeof body.type !== "string"
+        || !allowedTypes.has(body.type as GalleryMediaType)
+        || !Number.isSafeInteger(body.size)
+      ) {
         throw new CampaignMediaError("Nahrávanie súboru má neplatné údaje.");
       }
       const mediaUrl = `/uploads/${body.filename}`;
       const mediaType = String(body.filename).endsWith(".mp4") ? "VIDEO" : "IMAGE";
       try {
-        await validateUploadedCampaignGalleryMedia(mediaUrl, mediaType);
+        const uploaded = await validateUploadedCampaignMedia(mediaUrl, mediaType);
+        const expectedExtension = body.type === "video/mp4"
+          ? ".mp4"
+          : body.type === "image/jpeg"
+            ? ".jpg"
+            : `.${String(body.type).slice("image/".length)}`;
+        if (!String(body.filename).endsWith(expectedExtension) || uploaded.size !== body.size) {
+          throw new CampaignMediaError("Nahrávanie súboru nebolo dokončené správne. Skúste ho nahrať znova.");
+        }
       } catch (error) {
         await removeCampaignMedia(mediaUrl);
         throw error;
