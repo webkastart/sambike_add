@@ -2,7 +2,7 @@
 
 import type { Campaign, CampaignGalleryItem } from "@/generated/prisma/client";
 import { AlertCircle } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { unstable_rethrow, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import {
@@ -133,6 +133,7 @@ export function CampaignForm({ campaign, action, submitLabel, template = "servic
     try {
       await action(formData);
     } catch (error) {
+      unstable_rethrow(error);
       console.error("Campaign submission failed:", error);
       setUploadError(
         "Kampaň sa neuložila, pretože server odmietol požiadavku. Vybrané súbory zostali vo formulári — skúste uloženie znova alebo skontrolujte nastavenie R2 úložiska.",

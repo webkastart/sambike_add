@@ -178,7 +178,7 @@ export default async function CampaignLandingPage({ params, searchParams }: Prop
       <section data-campaign-hero className="mx-auto grid max-w-[82rem] gap-5 px-4 pb-16 sm:px-8 lg:grid-cols-[1.08fr_.92fr] lg:gap-7 lg:pb-24">
         <article className="overflow-hidden rounded-[2rem] bg-white sm:rounded-[2.75rem]">
           <div className="relative aspect-[4/3] min-h-[23rem] bg-[#dfe3dc] sm:aspect-[16/11] lg:min-h-[35rem]">
-            <Image src={heroImage} alt={heroMedia?.caption || headline} fill priority unoptimized={isRemoteMedia(heroImage)} sizes="(max-width: 1024px) 100vw, 56vw" className="object-cover" />
+            <Image src={heroImage} alt={heroMedia?.caption || headline} fill loading="eager" fetchPriority="high" unoptimized={isRemoteMedia(heroImage)} sizes="(max-width: 1024px) 100vw, 56vw" className="object-cover" />
             {heroMedia?.caption && <p className="absolute bottom-5 left-5 max-w-[80%] rounded-full bg-white/92 px-4 py-2 text-xs font-medium backdrop-blur-sm sm:bottom-7 sm:left-7">{heroMedia.caption}</p>}
           </div>
           <div className="relative -mt-9 rounded-t-[2rem] bg-white px-6 pb-7 pt-8 sm:-mt-12 sm:rounded-t-[2.75rem] sm:px-10 sm:pb-10 sm:pt-11">
