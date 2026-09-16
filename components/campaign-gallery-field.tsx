@@ -2,8 +2,23 @@
 
 /* eslint-disable @next/next/no-img-element -- Admin previews need blob URLs and direct load-error handling. */
 
-import { forwardRef, type SyntheticEvent, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { ImageOff, ImagePlus, Play, RotateCcw, Trash2 } from "lucide-react";
+import {
+  forwardRef,
+  type SyntheticEvent,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ImageOff,
+  ImagePlus,
+  Play,
+  RotateCcw,
+  Trash2,
+} from "lucide-react";
 import {
   type PreparedCampaignMedia,
   uploadCampaignMedia,
@@ -17,31 +32,77 @@ import {
 } from "@/lib/campaign-media-limits";
 
 type MediaType = "IMAGE" | "VIDEO";
+type MediaPlacement = "HERO" | "OFFER" | "BEFORE" | "AFTER" | "GALLERY";
 
 type GalleryItem = {
   id: string;
   mediaType: string;
   mediaUrl: string;
+  caption?: string | null;
+  placement?: string;
+};
+
+type CurrentItem = {
+  kind: "current";
+  key: string;
+  id: string;
+  mediaType: MediaType;
+  mediaUrl: string;
+  caption: string;
+  placement: MediaPlacement;
 };
 
 type SelectedItem = {
+  kind: "selected";
   file: File;
   key: string;
   mediaType: MediaType;
   previewUrl: string;
+  caption: string;
+  placement: MediaPlacement;
 };
+
+type EditorItem = CurrentItem | SelectedItem;
 
 type Props = {
   items: GalleryItem[];
 };
 
-export type PreparedGalleryMedia = PreparedCampaignMedia;
+export type PreparedGalleryMedia = PreparedCampaignMedia & {
+  caption: string;
+  placement: MediaPlacement;
+  sortOrder: number;
+};
 
 export type CampaignGalleryFieldHandle = {
   prepareUploads: () => Promise<{ direct: boolean; items: PreparedGalleryMedia[] }>;
 };
 
 const maxGalleryItems = 20;
+
+const placementOptions: Array<{ value: MediaPlacement; label: string }> = [
+  { value: "GALLERY", label: "Galéria" },
+  { value: "HERO", label: "Úvod kampane" },
+  { value: "OFFER", label: "Detail ponuky" },
+  { value: "BEFORE", label: "Pred servisom" },
+  { value: "AFTER", label: "Po servise" },
+];
+
+function validPlacement(value: string | undefined): MediaPlacement {
+  return value === "HERO" || value === "OFFER" || value === "BEFORE" || value === "AFTER" ? value : "GALLERY";
+}
+
+function initialEditorItems(items: GalleryItem[]): EditorItem[] {
+  return items.map((item) => ({
+    kind: "current",
+    key: `current-${item.id}`,
+    id: item.id,
+    mediaType: item.mediaType === "VIDEO" ? "VIDEO" : "IMAGE",
+    mediaUrl: item.mediaUrl,
+    caption: item.caption ?? "",
+    placement: item.mediaType === "VIDEO" ? "GALLERY" : validPlacement(item.placement),
+  }));
+}
 
 function fileKey(file: File) {
   return `${file.name}-${file.size}-${file.lastModified}`;
@@ -70,9 +131,6 @@ function uniqueMessages(messages: string[]) {
 function loadVideoPreview(event: SyntheticEvent<HTMLVideoElement>) {
   const video = event.currentTarget;
   if (!Number.isFinite(video.duration) || video.duration <= 0) return;
-
-  // A frame at exactly 0 s is not painted reliably by Safari and Chromium.
-  // Seeking slightly forward makes the browser fetch and render a real preview.
   video.currentTime = Math.min(0.1, video.duration / 2);
 }
 
@@ -109,49 +167,43 @@ function MediaPreview({ label, mediaType, src }: { label: string; mediaType: str
     );
   }
 
-  return (
-    <img
-      src={src}
-      alt={label}
-      className="absolute inset-0 size-full object-cover"
-      onError={() => setFailedSrc(src)}
-    />
-  );
+  return <img src={src} alt={label} className="absolute inset-0 size-full object-cover" onError={() => setFailedSrc(src)} />;
 }
 
 export const CampaignGalleryField = forwardRef<CampaignGalleryFieldHandle, Props>(function CampaignGalleryField({ items }, ref) {
   const inputRef = useRef<HTMLInputElement>(null);
   const previewUrlsRef = useRef(new Set<string>());
-  const preparedUploadsRef = useRef(new Map<string, PreparedGalleryMedia>());
-  const [removedIds, setRemovedIds] = useState<string[]>([]);
-  const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
+  const preparedUploadsRef = useRef(new Map<string, PreparedCampaignMedia>());
+  const [editorItems, setEditorItems] = useState<EditorItem[]>(() => initialEditorItems(items));
+  const [removedItems, setRemovedItems] = useState<CurrentItem[]>([]);
   const [selectionMessage, setSelectionMessage] = useState("");
   const [uploadMessage, setUploadMessage] = useState("");
 
-  const visibleItems = items.filter((item) => !removedIds.includes(item.id));
-  const itemCount = visibleItems.length + selectedItems.length;
-
   useEffect(() => {
     const previewUrls = previewUrlsRef.current;
-    return () => {
-      previewUrls.forEach((url) => URL.revokeObjectURL(url));
-    };
+    return () => previewUrls.forEach((url) => URL.revokeObjectURL(url));
   }, []);
 
-  function syncInputFiles(nextItems: SelectedItem[]) {
-    if (!inputRef.current) return;
+  function syncInputFiles(nextItems: EditorItem[]) {
+    if (!inputRef.current || typeof DataTransfer === "undefined") return;
     const transfer = new DataTransfer();
-    nextItems.forEach(({ file }) => transfer.items.add(file));
+    nextItems.forEach((item) => {
+      if (item.kind === "selected") transfer.items.add(item.file);
+    });
     inputRef.current.files = transfer.files;
+  }
+
+  function commitItems(nextItems: EditorItem[]) {
+    setEditorItems(nextItems);
+    syncInputFiles(nextItems);
   }
 
   function addItems(files: FileList | null) {
     if (!files) return;
-
-    const selectedKeys = new Set(selectedItems.map(({ key }) => key));
-    const availablePlaces = Math.max(0, maxGalleryItems - itemCount);
+    const selectedKeys = new Set(editorItems.filter((item): item is SelectedItem => item.kind === "selected").map(({ key }) => key));
+    const availablePlaces = Math.max(0, maxGalleryItems - editorItems.length);
     const candidates = Array.from(files).filter((file) => !selectedKeys.has(fileKey(file)));
-    const nextFiles: Array<{ file: File; mediaType: MediaType }> = [];
+    const additions: SelectedItem[] = [];
     const errors: string[] = [];
 
     for (const file of candidates) {
@@ -162,58 +214,93 @@ export const CampaignGalleryField = forwardRef<CampaignGalleryFieldHandle, Props
       }
       const mediaType = fileMediaType(file);
       if (!mediaType) continue;
-      if (nextFiles.length >= availablePlaces) {
-        errors.push(`Galéria môže obsahovať najviac ${maxGalleryItems} položiek.`);
+      if (additions.length >= availablePlaces) {
+        errors.push(`Kampaň môže obsahovať najviac ${maxGalleryItems} médií.`);
         continue;
       }
-      nextFiles.push({ file, mediaType });
-    }
-    setSelectionMessage(uniqueMessages(errors));
-    const additions = nextFiles.map(({ file, mediaType }) => {
       const previewUrl = URL.createObjectURL(file);
       previewUrlsRef.current.add(previewUrl);
-      return { file, key: fileKey(file), mediaType, previewUrl };
-    });
-    const nextItems = [...selectedItems, ...additions];
+      additions.push({
+        kind: "selected",
+        file,
+        key: fileKey(file),
+        mediaType,
+        previewUrl,
+        caption: "",
+        placement: "GALLERY",
+      });
+    }
 
-    setSelectedItems(nextItems);
-    syncInputFiles(nextItems);
+    setSelectionMessage(uniqueMessages(errors));
+    commitItems([...editorItems, ...additions]);
   }
 
-  function removeSelectedItem(key: string) {
-    const removedItem = selectedItems.find((item) => item.key === key);
-    if (removedItem) {
-      URL.revokeObjectURL(removedItem.previewUrl);
-      previewUrlsRef.current.delete(removedItem.previewUrl);
+  function removeItem(item: EditorItem) {
+    if (item.kind === "selected") {
+      URL.revokeObjectURL(item.previewUrl);
+      previewUrlsRef.current.delete(item.previewUrl);
+      preparedUploadsRef.current.delete(item.key);
+    } else {
+      setRemovedItems((removed) => [...removed, item]);
     }
-    const nextItems = selectedItems.filter((item) => item.key !== key);
-    preparedUploadsRef.current.delete(key);
-    setSelectedItems(nextItems);
+    commitItems(editorItems.filter(({ key }) => key !== item.key));
     setSelectionMessage("");
-    syncInputFiles(nextItems);
+  }
+
+  function restoreRemovedItems() {
+    const occupiedPlacements = new Set<MediaPlacement>(editorItems.map((item) => item.placement).filter((placement) => placement !== "GALLERY"));
+    const restoredItems = removedItems.map((item) => {
+      if (item.placement === "GALLERY" || !occupiedPlacements.has(item.placement)) {
+        occupiedPlacements.add(item.placement);
+        return item;
+      }
+      return { ...item, placement: "GALLERY" as const };
+    });
+    commitItems([...editorItems, ...restoredItems]);
+    setRemovedItems([]);
+  }
+
+  function updateItem(key: string, update: Partial<Pick<EditorItem, "caption" | "placement">>) {
+    commitItems(editorItems.map((item) => {
+      if (item.key !== key) {
+        if (update.placement && update.placement !== "GALLERY" && item.placement === update.placement) {
+          return { ...item, placement: "GALLERY" };
+        }
+        return item;
+      }
+      const placement = item.mediaType === "VIDEO" ? "GALLERY" : (update.placement ?? item.placement);
+      return { ...item, ...update, placement };
+    }));
+  }
+
+  function moveItem(index: number, offset: -1 | 1) {
+    const destination = index + offset;
+    if (destination < 0 || destination >= editorItems.length) return;
+    const nextItems = [...editorItems];
+    [nextItems[index], nextItems[destination]] = [nextItems[destination], nextItems[index]];
+    commitItems(nextItems);
   }
 
   useImperativeHandle(ref, () => ({
     async prepareUploads() {
+      const selectedItems = editorItems
+        .map((item, sortOrder) => ({ item, sortOrder }))
+        .filter((entry): entry is { item: SelectedItem; sortOrder: number } => entry.item.kind === "selected");
       if (selectedItems.length === 0) return { direct: true, items: [] };
 
-      const totalSize = selectedItems.reduce((total, item) => total + item.file.size, 0);
+      const totalSize = selectedItems.reduce((total, { item }) => total + item.file.size, 0);
       let uploadedBeforeCurrent = 0;
       const prepared: PreparedGalleryMedia[] = [];
       setUploadMessage("Nahrávam súbory… 0 %");
       try {
-        for (const item of selectedItems) {
-          const cached = preparedUploadsRef.current.get(item.key);
-          if (cached) {
-            prepared.push(cached);
-            uploadedBeforeCurrent += item.file.size;
-            continue;
+        for (const { item, sortOrder } of selectedItems) {
+          let uploaded = preparedUploadsRef.current.get(item.key);
+          if (!uploaded) {
+            uploaded = await uploadCampaignMedia(item.file, (uploadedBytes) => {
+              const percentage = Math.round(((uploadedBeforeCurrent + uploadedBytes) / totalSize) * 100);
+              setUploadMessage(`Nahrávam súbory… ${percentage} %`);
+            }) ?? undefined;
           }
-
-          const uploaded = await uploadCampaignMedia(item.file, (uploadedBytes) => {
-            const percentage = Math.round(((uploadedBeforeCurrent + uploadedBytes) / totalSize) * 100);
-            setUploadMessage(`Nahrávam súbory… ${percentage} %`);
-          });
           if (!uploaded) {
             setUploadMessage("");
             if (totalSize > maxFallbackUploadBatchSize) {
@@ -222,7 +309,7 @@ export const CampaignGalleryField = forwardRef<CampaignGalleryFieldHandle, Props
             return { direct: false, items: [] };
           }
           preparedUploadsRef.current.set(item.key, uploaded);
-          prepared.push(uploaded);
+          prepared.push({ ...uploaded, caption: item.caption.trim(), placement: item.placement, sortOrder });
           uploadedBeforeCurrent += item.file.size;
         }
         setUploadMessage("");
@@ -232,78 +319,111 @@ export const CampaignGalleryField = forwardRef<CampaignGalleryFieldHandle, Props
         throw error;
       }
     },
-  }), [selectedItems]);
+  }), [editorItems]);
 
   return (
     <div>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <span className="text-xs font-semibold uppercase tracking-[.12em] text-[#747d76]">Galéria kampane</span>
+          <span className="text-xs font-semibold uppercase tracking-[.12em] text-[#747d76]">Médiá kampane</span>
           <p className="mt-1 max-w-2xl text-xs leading-relaxed text-[#89918b]">
-            Vyberte fotografie aj MP4 videá. Na stránke sa automaticky zoradia za sebou a prispôsobia mobilu aj počítaču.
+            Ku každej fotke môžete doplniť popis, určiť jej miesto na stránke, zmeniť poradie alebo ju odstrániť.
           </p>
         </div>
-        <span className="text-xs font-medium text-[#747d76]" aria-live="polite">
-          {itemCount} / {maxGalleryItems} položiek
-        </span>
+        <span className="text-xs font-medium text-[#747d76]" aria-live="polite">{editorItems.length} / {maxGalleryItems} médií</span>
       </div>
 
-      {itemCount > 0 ? (
-        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {visibleItems.map((item, index) => (
-            <div key={item.id} className="group relative aspect-[4/3] overflow-hidden rounded-[4px] bg-[#edf0ec]">
-              <input type="hidden" name="galleryItemId" value={item.id} />
-              <MediaPreview
-                src={item.mediaUrl}
-                mediaType={item.mediaType}
-                label={`${item.mediaType === "VIDEO" ? "Video" : "Fotografia"} galérie ${index + 1}`}
-              />
-              <span className="absolute left-2 top-2 rounded-full bg-black/65 px-2 py-1 text-[10px] font-semibold text-white">
-                {item.mediaType === "VIDEO" ? "Video" : index + 1}
-              </span>
-              <button
-                type="button"
-                onClick={() => setRemovedIds((ids) => [...ids, item.id])}
-                className="absolute bottom-2 right-2 inline-flex size-8 items-center justify-center rounded-full bg-white text-[#793b37] shadow-sm transition hover:bg-[#fff2f1] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
-                aria-label={`Odstrániť položku ${index + 1}`}
-              >
-                <Trash2 size={15} />
-              </button>
-            </div>
-          ))}
+      {editorItems.length > 0 ? (
+        <div className="mt-5 grid gap-4 sm:grid-cols-2">
+          {editorItems.map((item, index) => {
+            const src = item.kind === "current" ? item.mediaUrl : item.previewUrl;
+            const itemData = {
+              ...(item.kind === "current" ? { id: item.id } : { key: item.key }),
+              caption: item.caption,
+              placement: item.placement,
+              sortOrder: index,
+            };
+            return (
+              <div key={item.key} className="overflow-hidden rounded-[1.25rem] border border-[var(--line)] bg-white">
+                {item.kind === "current" ? (
+                  <input type="hidden" name="galleryItemData" value={JSON.stringify(itemData)} />
+                ) : (
+                  <input type="hidden" name="galleryNewItemData" value={JSON.stringify(itemData)} />
+                )}
+                <div className="relative aspect-[16/10] bg-[#edf0ec]">
+                  <MediaPreview
+                    src={src}
+                    mediaType={item.mediaType}
+                    label={item.caption || `${item.mediaType === "VIDEO" ? "Video" : "Fotografia"} ${index + 1}`}
+                  />
+                  <span className="absolute left-3 top-3 rounded-full bg-black/65 px-2.5 py-1 text-[10px] font-semibold text-white">
+                    {item.kind === "selected" ? "Nové · " : ""}{item.mediaType === "VIDEO" ? "Video" : String(index + 1).padStart(2, "0")}
+                  </span>
+                </div>
 
-          {selectedItems.map((item, index) => (
-            <div key={item.key} className="relative aspect-[4/3] overflow-hidden rounded-[4px] bg-[#edf0ec]">
-              <MediaPreview src={item.previewUrl} mediaType={item.mediaType} label={`Náhľad nového súboru ${index + 1}`} />
-              <span className="absolute left-2 top-2 rounded-full bg-[var(--accent)] px-2 py-1 text-[10px] font-semibold text-white">
-                {item.mediaType === "VIDEO" ? "Nové video" : "Nová fotka"}
-              </span>
-              <button
-                type="button"
-                onClick={() => removeSelectedItem(item.key)}
-                className="absolute bottom-2 right-2 inline-flex size-8 items-center justify-center rounded-full bg-white text-[#793b37] shadow-sm transition hover:bg-[#fff2f1] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
-                aria-label={`Zrušiť výber súboru ${item.file.name}`}
-              >
-                <Trash2 size={15} />
-              </button>
-            </div>
-          ))}
+                <div className="space-y-4 p-4">
+                  <label className="block">
+                    <span className="text-xs font-semibold text-[#59635b]">Popis fotografie</span>
+                    <input
+                      className="admin-field"
+                      type="text"
+                      value={item.caption}
+                      maxLength={240}
+                      placeholder="Napr. Kontrola a nastavenie pohonu"
+                      onChange={(event) => updateItem(item.key, { caption: event.target.value })}
+                    />
+                  </label>
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
+                    <label>
+                      <span className="text-xs font-semibold text-[#59635b]">Zobraziť v sekcii</span>
+                      <select
+                        className="admin-field"
+                        value={item.placement}
+                        disabled={item.mediaType === "VIDEO"}
+                        onChange={(event) => updateItem(item.key, { placement: event.target.value as MediaPlacement })}
+                      >
+                        {placementOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                      </select>
+                    </label>
+                    <div className="flex items-center gap-1" aria-label={`Poradie média ${index + 1}`}>
+                      <button
+                        type="button"
+                        onClick={() => moveItem(index, -1)}
+                        disabled={index === 0}
+                        className="inline-flex size-9 items-center justify-center rounded-full text-[#59635b] hover:bg-[#f0f2ef] disabled:opacity-25"
+                        aria-label="Posunúť vyššie"
+                      ><ArrowUp size={16} /></button>
+                      <button
+                        type="button"
+                        onClick={() => moveItem(index, 1)}
+                        disabled={index === editorItems.length - 1}
+                        className="inline-flex size-9 items-center justify-center rounded-full text-[#59635b] hover:bg-[#f0f2ef] disabled:opacity-25"
+                        aria-label="Posunúť nižšie"
+                      ><ArrowDown size={16} /></button>
+                      <button
+                        type="button"
+                        onClick={() => removeItem(item)}
+                        className="inline-flex size-9 items-center justify-center rounded-full text-[#9a4540] hover:bg-[#fff2f1]"
+                        aria-label={`Odstrániť médium ${index + 1}`}
+                      ><Trash2 size={16} /></button>
+                    </div>
+                  </div>
+                  {item.mediaType === "VIDEO" && <p className="text-xs text-[#89918b]">Video sa zobrazuje v galérii, kde má vlastné ovládanie prehrávania.</p>}
+                </div>
+              </div>
+            );
+          })}
         </div>
       ) : (
         <p className="mt-4 border-y border-[var(--line)] py-5 text-sm text-[#747d76]">
-          Galéria je prázdna. Po nahratí sa fotografie a videá zobrazia v časti „Práca zo servisu“.
+          Zatiaľ tu nie sú ďalšie médiá. Nahrajte fotografie alebo videá a vyberte, kde sa majú zobraziť.
         </p>
       )}
 
-      <div className="mt-4 flex flex-wrap items-center gap-4">
-        <label
-          className={`inline-flex items-center gap-2 text-sm font-semibold ${
-            itemCount >= maxGalleryItems ? "cursor-not-allowed text-[#a4aaa5]" : "cursor-pointer text-[var(--ink)] hover:underline"
-          }`}
-          aria-disabled={itemCount >= maxGalleryItems}
-        >
+      <div className="mt-5 flex flex-wrap items-center gap-4">
+        <label className={`inline-flex items-center gap-2 text-sm font-semibold ${editorItems.length >= maxGalleryItems ? "cursor-not-allowed text-[#a4aaa5]" : "cursor-pointer text-[var(--ink)] hover:underline"}`} aria-disabled={editorItems.length >= maxGalleryItems}>
           <ImagePlus size={17} />
-          {itemCount > 0 ? "Pridať ďalšie súbory" : "Nahrať fotky a videá"}
+          {editorItems.length > 0 ? "Pridať ďalšie médiá" : "Nahrať fotky a videá"}
           <input
             ref={inputRef}
             className="sr-only"
@@ -311,25 +431,19 @@ export const CampaignGalleryField = forwardRef<CampaignGalleryFieldHandle, Props
             name="galleryMediaFiles"
             accept="image/jpeg,image/png,image/webp,video/mp4"
             multiple
-            aria-disabled={itemCount >= maxGalleryItems}
-            onClick={(event) => {
-              if (itemCount >= maxGalleryItems) event.preventDefault();
-            }}
+            aria-disabled={editorItems.length >= maxGalleryItems}
+            onClick={(event) => { if (editorItems.length >= maxGalleryItems) event.preventDefault(); }}
             onChange={(event) => addItems(event.target.files)}
           />
         </label>
-        {removedIds.length > 0 && (
-          <button
-            type="button"
-            onClick={() => setRemovedIds([])}
-            className="inline-flex items-center gap-1.5 text-xs text-[#707a72] hover:text-[var(--ink)]"
-          >
-            <RotateCcw size={14} /> Obnoviť odstránené
+        {removedItems.length > 0 && (
+          <button type="button" onClick={restoreRemovedItems} className="inline-flex items-center gap-1.5 text-xs text-[#707a72] hover:text-[var(--ink)]">
+            <RotateCcw size={14} /> Obnoviť odstránené ({removedItems.length})
           </button>
         )}
       </div>
       <p className="mt-2 text-xs text-[#89918b]">
-        Originály bez kompresie · JPG, PNG alebo WebP do {campaignImageSizeLabel}; MP4 do {campaignVideoSizeLabel}.
+        Pre každú špeciálnu sekciu možno vybrať po jednej fotografii · JPG, PNG alebo WebP do {campaignImageSizeLabel}; MP4 do {campaignVideoSizeLabel}.
       </p>
       {uploadMessage && <p className="mt-2 text-xs font-medium text-[#35623d]" role="status">{uploadMessage}</p>}
       {selectionMessage && <p className="mt-2 text-xs font-medium text-[#9b5b23]" role="status">{selectionMessage}</p>}

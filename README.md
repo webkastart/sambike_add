@@ -1,21 +1,22 @@
 # SAMBIKE Ads
 
-Lokálne MVP pre správu reklamných kampaní a dynamických landing pages pre požičovňu bicyklov. Každá kampaň používa rovnakú responzívnu šablónu a vlastné dáta podľa slug-u.
+Lokálne MVP pre správu reklamných kampaní a dynamických landing pages servisu bicyklov Sambike. Každá kampaň používa rovnakú responzívnu šablónu a vlastné dáta podľa slug-u.
 
 ## Stack
 
 - Next.js 16 (App Router) + TypeScript
 - Tailwind CSS 4
 - Prisma ORM 7
-- SQLite
+- PostgreSQL 17 (lokálne cez Docker Compose)
 
 ## Lokálne spustenie
 
-Požiadavky: Node.js `20.19+`, `22.12+` alebo `24+` a npm.
+Požiadavky: Node.js `20.19+`, `22.12+` alebo `24+`, npm a Docker.
 
 ```bash
 npm install
 cp .env.example .env
+docker compose up -d postgres
 npm run db:setup
 npm run dev
 ```
@@ -26,13 +27,15 @@ Hlavné adresy:
 
 - administrácia: [http://localhost:3000/admin](http://localhost:3000/admin)
 - záujemcovia: [http://localhost:3000/admin/leady](http://localhost:3000/admin/leady)
-- demo landing page: [http://localhost:3000/kampan/pozicovna](http://localhost:3000/kampan/pozicovna)
+- demo landing page: [http://localhost:3000/kampan/servis](http://localhost:3000/kampan/servis)
 
 ## E-mailové notifikácie cez Resend
 
 Po odoslaní formulára sa požiadavka najprv uloží do databázy a následne sa na
 nastavené admin adresy odošle e-mailová notifikácia. Ak Resend dočasne zlyhá,
-kontakt zostane bezpečne uložený v administrácii.
+kontakt zostane bezpečne uložený v administrácii a databázový outbox ho skúsi
+znova. V hostingu spúšťajte každých 5 minút `POST /api/email-outbox` s hlavičkou
+`Authorization: Bearer <CRON_SECRET>`. Stav a manuálny retry sú v detaile leadu.
 
 Ak záujemca vo formulári uvedie e-mail, dostane naň samostatné potvrdenie s
 rekapituláciou požiadavky. Toto potvrdenie sa posiela nezávisle od zapnutých
@@ -117,9 +120,42 @@ Meta potrebuje načítať landing page aj obrázok reklamy. Po nastavení použi
 Token ani app secret nikdy nepoužívajú prefix `NEXT_PUBLIC_` a neposielajú
 sa do prehliadača.
 
+Predvolený režim je `META_MODE="sandbox"`. Sandbox vytvorí iba lokálny
+pozastavený koncept a nikdy nevytvorí ani nespustí reálnu reklamu. Pre live
+režim treba vedome nastaviť `META_MODE="live"`, limity
+`META_MAX_CAMPAIGN_DAILY_BUDGET_CENTS` a `META_MAX_GLOBAL_DAILY_BUDGET_CENTS`
+a následne v administrácii znovu overiť konkrétny účet. Aktivácia vyžaduje EUR,
+publikovanú landing page a explicitné potvrdenie. Karty a fakturácia zostávajú
+výhradne v Meta Ads Manageri.
+
+Synchronizácia ukladá aj denné Meta spend, impressions, clicks a Meta leady.
+Manuálne tlačidlo na detaile kampane zostáva dostupné. Pre pravidelný import
+naplánujte raz denne `POST /api/cron/meta-sync` s hlavičkou
+`Authorization: Bearer <CRON_SECRET>`. Interné leady uložené v Sambike Ads sú
+samostatná metrika a nikdy sa nezamieňajú s `metaLeads`.
+
+Dashboard počíta CPL ako Meta spend / interné leady, cenu zákazky ako Meta spend
+/ dokončené zákazky a ROAS ako tržba dokončených zákaziek / Meta spend. Ak
+niektorý vstup chýba alebo je deliteľ nulový, zobrazí `—`.
+
+## Publikovanie, preview a A/B experimenty
+
+Kampaň prechádza stavmi koncept, pripravená, publikovaná, pozastavená a
+archivovaná. Verejná URL funguje iba pre `PUBLISHED`. Publikovanie vždy zopakuje
+serverovú kontrolu pripravenosti a uloží nemenný snapshot; starú verziu možno
+obnoviť iba do konceptu. Náhľad používa 15-minútový podpísaný odkaz
+(`CAMPAIGN_PREVIEW_SECRET`), má `noindex` a nevytvára analytiku, lead ani e-mail.
+
+Plánované časy sa zadávajú v `Europe/Bratislava`. Spúšťajte každú minútu
+`POST /api/cron/campaigns` s hlavičkou `Authorization: Bearer <CRON_SECRET>`.
+Cron je idempotentný, pred publikovaním opakuje kontrolu pripravenosti a pri
+ukončení najprv pozastaví aktívnu Meta reklamu. A/B experiment podporuje jeden
+variant B pre hero nadpis, popis, CTA a obrázok; variant sa uloží pri udalosti aj
+leade a výsledky malej vzorky administrácia označí ako orientačné.
+
 ## Demo dáta
 
-Seed vloží štyri kampane (`pozicovna`, `servis`, `letna-akcia`, jednu neaktívnu) a troch ukážkových záujemcov iba do úplne novej databázy. Je bezpečné ho spustiť opakovane; existujúce produkčné dáta nikdy neprepíše.
+Seed vloží servisnú kampaň, jednu neaktívnu testovaciu kampaň a dvoch ukážkových záujemcov iba do úplne novej databázy. Je bezpečné ho spustiť opakovane; existujúce produkčné dáta nikdy neprepíše.
 
 ```bash
 npm run db:seed
@@ -127,7 +163,10 @@ npm run db:seed
 
 ## Databáza
 
-Lokálna SQLite databáza vznikne ako `dev.db` v koreni projektu. Schéma je v `prisma/schema.prisma`, migrácie v `prisma/migrations/`.
+Lokálny PostgreSQL beží cez `docker-compose.yml`; dáta ostávajú v pomenovanom
+Docker volume. Schéma je v `prisma/schema.prisma`, PostgreSQL migrácie v
+`prisma/migrations/` a pôvodné SQLite migrácie sú zachované iba na audit v
+`prisma/legacy-sqlite-migrations/`.
 
 Užitočné príkazy:
 
@@ -137,14 +176,55 @@ npm run db:generate
 npm run db:studio
 ```
 
+V produkcii používajte výhradne `npx prisma migrate deploy`. Existujúci `dev.db`
+sa automaticky nemaže ani nekonvertuje; bezpečný read-only import spustíte až po
+zálohe cez `SQLITE_SOURCE_PATH=./dev.db npm run db:import-sqlite`. Podrobný postup,
+zálohy a restore checklist sú v [produkčnej dokumentácii](docs/production-deployment.md).
+
+## Bezpečnosť, antispam a GDPR
+
+Administrácia používa jeden podpísaný, expirovateľný `httpOnly` session cookie.
+V produkcii sú povinné silné a navzájom odlišné `ADMIN_PASSWORD`,
+`ADMIN_SESSION_SECRET` a `LEAD_PROTECTION_SECRET`; chýbajúce alebo ukážkové
+hodnoty spôsobia jasnú konfiguračnú chybu. Všetky admin mutácie a upload API
+overujú session aj na serveri.
+
+Verejný formulár používa Zod validáciu, podpísaný časový token, honeypot,
+PostgreSQL rate limit, deduplikáciu a Cloudflare Turnstile. Turnstile môže byť
+lokálne vypnutý, ale v produkcii musia byť nastavené oba `TURNSTILE_*` kľúče.
+Retenciu určuje `LEAD_RETENTION_DAYS`; prevádzkovateľ musí vyplniť všetky
+`PRIVACY_*` hodnoty. Meta Pixel sa načíta iba po marketingovom súhlase, ktorý je
+možné na landing page zmeniť.
+
+## CRM a interný funnel
+
+Lead prechádza typovanými stavmi `NEW`, `CONTACTED`, `BOOKED`, `COMPLETED`,
+`LOST` a `SPAM`. Každá zmena stavu, interná poznámka, follow-up, zodpovedná
+osoba, retry e-mailu a anonymizácia vytvára append-only `LeadActivity`. Hodnota
+dokončenej zákazky je uložená v celých centoch.
+
+Zoznam leadov má serverové vyhľadávanie, filtre, triedenie, stránkovanie, počty
+podľa stavov a CSV export s UTF-8 BOM, slovenským oddeľovačom a ochranou proti
+formula injection. Verejné landing pages ukladajú validované `PAGE_VIEW`,
+`CTA_CLICK`, `PHONE_CLICK` a `FORM_START`; `LEAD_CREATED` vzniká iba na serveri
+po úspešnom uložení leadu. Počty sú udalosti, nie unikátni používatelia.
+
+## Monitoring
+
+Sentry je lokálne voliteľné. Pre server nastavte `SENTRY_DSN`, pre klienta
+`NEXT_PUBLIC_SENTRY_DSN`; sourcemapy pri builde vyžadujú `SENTRY_AUTH_TOKEN`,
+`SENTRY_ORG` a `SENTRY_PROJECT`. Integrácia odstraňuje cookies, authorization,
+request body, query string a user údaje a nevytvára konzolové breadcrumbs.
+
 ## Funkcie MVP
 
 - vytvorenie, úprava, aktivácia/deaktivácia a vymazanie kampane
 - dynamická verejná URL `/kampan/[slug]`
 - univerzálna responzívna landing page s hero obsahom, cenou, CTA a telefonickým kontaktom
 - formulár pre záujemcov so súhlasom, potvrdením po odoslaní a väzbou na kampaň
-- dashboard s počtom záujemcov a stavom kampaní
-- zoznam, filtrovanie a detail záujemcov
+- funnel dashboard s filtrom obdobia, tržbou, CPL, cenou zákazky a ROAS
+- serverovo filtrovaný a stránkovaný CRM zoznam, CSV export a pracovný detail leadu
+- interné meranie kampaní a denné historické Meta metriky
 - samostatné fotografie pre úvod, ponuku a tri pozície v galérii; každá sa dá nahrať alebo nastaviť URL adresou
 - vytvorenie, spustenie, pozastavenie a synchronizácia Facebook/Instagram reklamy cez Meta Marketing API
 - ochrana administrácie heslom v produkcii
@@ -153,7 +233,8 @@ npm run db:studio
 
 ```text
 app/
-├── actions.ts                 # serverové akcie pre kampane a záujemcov
+├── actions.ts                 # kampane a verejný lead formulár
+├── crm-actions.ts             # autorizované CRM mutácie
 ├── admin/
 │   ├── kampane/[id]/          # úprava kampane
 │   ├── kampane/nova/          # vytvorenie kampane
@@ -164,17 +245,16 @@ components/                    # formuláre, navigácia a spoločné UI
 generated/prisma/              # generovaný Prisma klient (po npm install)
 lib/                           # databázový klient a utility
 prisma/
-├── migrations/                # verzované SQLite migrácie
+├── migrations/                # verzované PostgreSQL migrácie
+├── legacy-sqlite-migrations/  # historické migrácie, nespúšťať na PostgreSQL
 ├── schema.prisma              # databázový model
 └── seed.ts                    # demo dáta
 public/                        # statické aktíva
 ```
 
-## Hranice MVP
+## Produkčné hranice
 
-Nahrané obrázky sa ukladajú lokálne do `storage/campaign-images`, preto treba pri
-nasadení na serverless hosting použiť trvalé objektové úložisko. Jedno spoločné
-admin heslo je vhodné pre malý interný tím; pri viacerých firmách alebo rolách ho
-treba nahradiť používateľskými účtami. Pred verejným nasadením treba doplniť aj
-ochranu formulára proti spamu, produkčnú databázu a pravidlá uchovávania osobných
-údajov.
+Nasadenie je určené jednej firme a jednému spoločnému administrátorskému účtu.
+Produkcia vyžaduje PostgreSQL, trvalé R2 úložisko, HTTPS, Turnstile, pravidelný
+outbox cron a reálne údaje prevádzkovateľa. Zálohy a externé služby musí vlastník
+zapnúť a overiť podľa deployment checklistu.

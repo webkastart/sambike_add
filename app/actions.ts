@@ -4,9 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { slugify } from "@/lib/format";
-import { sendLeadConfirmation, sendLeadNotification } from "@/lib/email";
 import { getConfiguredNotificationEmails } from "@/lib/notification-recipients";
-import { deleteRemoteMetaAd, setRemoteMetaAdStatus } from "@/lib/meta-ads";
+import { setRemoteMetaAdStatus } from "@/lib/meta-ads";
 import {
   type CampaignGalleryMediaType,
   CampaignMediaError,
@@ -18,12 +17,32 @@ import {
   validateUploadedCampaignMedia,
 } from "@/lib/campaign-media";
 import { maxFallbackUploadBatchSize } from "@/lib/campaign-media-limits";
+import { requireAdmin } from "@/lib/admin-auth";
+import { processEmailOutbox } from "@/lib/email-outbox";
+import { leadDedupeKey, verifyLeadFormToken } from "@/lib/lead-protection";
+import { normalizePhone, parseLeadSubmission } from "@/lib/lead-validation";
+import { consumeRateLimit, requestIp } from "@/lib/rate-limit";
+import { privacyPolicyVersion } from "@/lib/security-config";
+import { verifyTurnstile } from "@/lib/turnstile";
+import type { Prisma } from "@/generated/prisma/client";
+import {
+  canTransitionCampaign,
+  campaignReadiness,
+  parseFaq,
+  parseBratislavaDateTime,
+  parseStructuredItems,
+  parseTestimonials,
+  publicationSnapshot,
+  snapshotFields,
+  type CampaignStatusValue,
+} from "@/lib/campaign-workflow";
 
 function text(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
 }
 
 export async function updateLeadNotificationRecipients(formData: FormData) {
+  await requireAdmin();
   const configuredEmails = getConfiguredNotificationEmails();
   const requestedEmails = new Set(
     formData.getAll("recipient").map((value) => String(value).trim().toLowerCase()),
@@ -46,33 +65,58 @@ const campaignImageFields = [
   { file: "offerImageFile", uploaded: "offerImageUploadedMedia", url: "offerImageUrl" },
 ] as const;
 
-const legacyCampaignImageUrlFields = ["galleryImage1Url", "galleryImage2Url", "galleryImage3Url"] as const;
 const maxGalleryItems = 20;
 
 type CampaignImageUrlField = (typeof campaignImageFields)[number]["url"];
 type UploadedCampaignImages = Partial<Record<CampaignImageUrlField, string>>;
+type CampaignMediaPlacement = "HERO" | "OFFER" | "BEFORE" | "AFTER" | "GALLERY";
+type CampaignGalleryInput = {
+  mediaType: "IMAGE" | "VIDEO";
+  mediaUrl: string;
+  caption: string;
+  placement: CampaignMediaPlacement;
+  sortOrder: number;
+};
 
 function campaignInput(formData: FormData) {
   return {
-    name: text(formData, "name"),
+    name: text(formData, "name").slice(0, 120),
     slug: slugify(text(formData, "slug") || text(formData, "name")),
-    headline: text(formData, "headline"),
-    description: text(formData, "description"),
+    headline: text(formData, "headline").slice(0, 160),
+    description: text(formData, "description").slice(0, 800),
     imageUrl: text(formData, "imageUrl"),
     offerImageUrl: text(formData, "offerImageUrl"),
-    priceText: text(formData, "priceText"),
-    ctaText: text(formData, "ctaText"),
-    offerType: text(formData, "offerType"),
-    phone: text(formData, "phone"),
-    email: text(formData, "email"),
+    priceText: text(formData, "priceText").slice(0, 180),
+    ctaText: text(formData, "ctaText").slice(0, 80),
+    offerType: text(formData, "offerType").slice(0, 100),
+    phone: text(formData, "phone").slice(0, 30),
+    email: text(formData, "email").slice(0, 254),
     formEnabled: formData.get("formEnabled") === "on",
-    isActive: formData.get("isActive") === "on",
+    benefits: parseStructuredItems(text(formData, "benefits")),
+    processSteps: parseStructuredItems(text(formData, "processSteps")),
+    faq: parseFaq(text(formData, "faq")),
+    testimonials: parseTestimonials(text(formData, "testimonials")),
+    openingHours: text(formData, "openingHours").slice(0, 300) || null,
+    address: text(formData, "address").slice(0, 300) || null,
+    mapUrl: text(formData, "mapUrl").slice(0, 1000) || null,
+    trustText: text(formData, "trustText").slice(0, 500) || null,
+    responseTimeText: text(formData, "responseTimeText").slice(0, 200) || null,
+    finalCtaText: text(formData, "finalCtaText").slice(0, 180) || null,
+    sectionOrder: ["benefits", "process", "offer", "gallery", "faq", "testimonials", "form"],
+    seoTitle: text(formData, "seoTitle").slice(0, 70) || null,
+    seoDescription: text(formData, "seoDescription").slice(0, 180) || null,
+    canonicalUrl: text(formData, "canonicalUrl").slice(0, 1000) || null,
+    ogTitle: text(formData, "ogTitle").slice(0, 100) || null,
+    ogDescription: text(formData, "ogDescription").slice(0, 300) || null,
+    ogImageUrl: text(formData, "ogImageUrl").slice(0, 1000) || null,
+    noIndex: formData.get("noIndex") === "on",
+    legalUrl: text(formData, "legalUrl").slice(0, 1000) || "/ochrana-osobnych-udajov",
   };
 }
 
 function hasRequiredCampaignData(data: ReturnType<typeof campaignInput>, hasImage: boolean) {
   const hasTextData = Object.entries(data)
-    .filter(([key]) => !["formEnabled", "isActive", ...campaignImageFields.map((field) => field.url)].includes(key))
+    .filter(([key]) => ["name", "slug", "headline", "description", "priceText", "ctaText", "offerType", "phone", "email"].includes(key))
     .every(([, value]) => Boolean(value));
 
   return hasTextData && (Boolean(data.imageUrl) || hasImage);
@@ -90,15 +134,54 @@ function preparedMedia(value: FormDataEntryValue | null) {
   if (typeof value !== "string") throw new CampaignMediaError("Nahraný súbor má neplatné údaje.");
 
   try {
-    return JSON.parse(value) as { mediaType?: unknown; mediaUrl?: unknown };
+    return JSON.parse(value) as Record<string, unknown>;
   } catch {
     throw new CampaignMediaError("Nahraný súbor má neplatné údaje.");
   }
 }
 
+function galleryCaption(value: unknown) {
+  return typeof value === "string" ? value.trim().slice(0, 240) : "";
+}
+
+function galleryPlacement(value: unknown, mediaType: "IMAGE" | "VIDEO"): CampaignMediaPlacement {
+  if (mediaType === "VIDEO") return "GALLERY";
+  return value === "HERO" || value === "OFFER" || value === "BEFORE" || value === "AFTER" ? value : "GALLERY";
+}
+
+function gallerySortOrder(value: unknown, fallback: number) {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 && value < maxGalleryItems
+    ? value
+    : fallback;
+}
+
+function uniqueGalleryPlacements<T extends { mediaType: string; placement: CampaignMediaPlacement }>(items: T[]) {
+  const occupied = new Set<CampaignMediaPlacement>();
+  return items.map((item) => {
+    if (item.mediaType === "VIDEO" || item.placement === "GALLERY" || occupied.has(item.placement)) {
+      return { ...item, placement: "GALLERY" as const };
+    }
+    occupied.add(item.placement);
+    return item;
+  });
+}
+
 async function removeCampaignMediaFiles(mediaUrls: Array<string | null | undefined>) {
   for (const mediaUrl of mediaUrls) {
     if (mediaUrl) await removeCampaignMedia(mediaUrl);
+  }
+}
+
+async function removeCampaignMediaIfUnreferenced(mediaUrls: Array<string | null | undefined>) {
+  for (const mediaUrl of mediaUrls) {
+    if (!mediaUrl) continue;
+    const [campaignReferences, galleryReferences] = await Promise.all([
+      prisma.campaign.count({ where: { OR: [
+        { imageUrl: mediaUrl }, { offerImageUrl: mediaUrl }, { galleryImage1Url: mediaUrl }, { galleryImage2Url: mediaUrl }, { galleryImage3Url: mediaUrl }, { ogImageUrl: mediaUrl },
+      ] } }),
+      prisma.campaignGalleryItem.count({ where: { mediaUrl } }),
+    ]);
+    if (campaignReferences === 0 && galleryReferences === 0) await removeCampaignMedia(mediaUrl);
   }
 }
 
@@ -122,7 +205,7 @@ function uploadErrorMessage(error: unknown) {
 
 async function uploadedCampaignMedia(formData: FormData, errorPath: string, galleryPlaces: number) {
   const uploaded: UploadedCampaignImages = {};
-  const galleryItems: Array<{ mediaType: "IMAGE" | "VIDEO"; mediaUrl: string }> = [];
+  const galleryItems: CampaignGalleryInput[] = [];
 
   try {
     for (const field of campaignImageFields) {
@@ -155,7 +238,13 @@ async function uploadedCampaignMedia(formData: FormData, errorPath: string, gall
         input.mediaUrl,
         input.mediaType as CampaignGalleryMediaType,
       );
-      galleryItems.push({ mediaType: item.mediaType, mediaUrl: item.mediaUrl });
+      galleryItems.push({
+        mediaType: item.mediaType,
+        mediaUrl: item.mediaUrl,
+        caption: galleryCaption(input.caption),
+        placement: galleryPlacement(input.placement, item.mediaType),
+        sortOrder: gallerySortOrder(input.sortOrder, galleryItems.length),
+      });
     }
 
     const uploadValues = [
@@ -174,13 +263,22 @@ async function uploadedCampaignMedia(formData: FormData, errorPath: string, gall
       const imageUrl = await saveCampaignImage(formData.get(field.file));
       if (imageUrl) uploaded[field.url] = imageUrl;
     }
+    const newItemMetadata = formData.getAll("galleryNewItemData").map(preparedMedia);
+    let fallbackIndex = 0;
     for (const value of formData.getAll("galleryMediaFiles")) {
       if (!hasCampaignMediaUpload(value)) continue;
       if (galleryItems.length >= galleryPlaces) {
         throw new CampaignMediaError(`Galéria môže obsahovať najviac ${maxGalleryItems} položiek.`);
       }
       const item = await saveCampaignGalleryMedia(value);
-      if (item) galleryItems.push(item);
+      const metadata = newItemMetadata[fallbackIndex] ?? {};
+      fallbackIndex += 1;
+      if (item) galleryItems.push({
+        ...item,
+        caption: galleryCaption(metadata.caption),
+        placement: galleryPlacement(metadata.placement, item.mediaType),
+        sortOrder: gallerySortOrder(metadata.sortOrder, galleryItems.length),
+      });
     }
     return { images: uploaded, galleryItems };
   } catch (error) {
@@ -204,6 +302,7 @@ function campaignImageData(
 }
 
 export async function createCampaign(formData: FormData) {
+  const { actor } = await requireAdmin();
   const data = campaignInput(formData);
   const hasImage = hasSubmittedCampaignImage(formData);
   if (!hasRequiredCampaignData(data, hasImage)) {
@@ -215,15 +314,20 @@ export async function createCampaign(formData: FormData) {
   }
   const uploadedMedia = await uploadedCampaignMedia(formData, "/admin/kampane/nova", maxGalleryItems);
   const images = campaignImageData(data, uploadedMedia.images);
+  const galleryItems = uniqueGalleryPlacements(
+    [...uploadedMedia.galleryItems].sort((a, b) => a.sortOrder - b.sortOrder),
+  );
 
   try {
     await prisma.campaign.create({
       data: {
         ...data,
         ...images,
+        status: "DRAFT",
         galleryItems: {
-          create: uploadedMedia.galleryItems.map((item, sortOrder) => ({ ...item, sortOrder })),
+          create: galleryItems.map((item, sortOrder) => ({ ...item, sortOrder })),
         },
+        auditEntries: { create: { action: "CREATED", actor } },
       },
     });
   } catch (error) {
@@ -239,6 +343,7 @@ export async function createCampaign(formData: FormData) {
 }
 
 export async function updateCampaign(id: string, formData: FormData) {
+  const { actor } = await requireAdmin();
   const data = campaignInput(formData);
   const currentCampaign = await prisma.campaign.findUniqueOrThrow({
     where: { id },
@@ -247,6 +352,9 @@ export async function updateCampaign(id: string, formData: FormData) {
       galleryItems: { orderBy: { sortOrder: "asc" } },
     },
   });
+  if (currentCampaign.status === "ARCHIVED") {
+    redirect(`/admin/kampane/${id}?error=Archivovanú+kampaň+najprv+obnovte+do+konceptu.`);
+  }
   if (currentCampaign.metaAd?.metaCampaignId && data.slug !== currentCampaign.slug) {
     redirect(`/admin/kampane/${id}?error=Adresu+stránky+nie+je+možné+zmeniť,+kým+je+na+ňu+napojená+Meta+reklama.`);
   }
@@ -260,7 +368,13 @@ export async function updateCampaign(id: string, formData: FormData) {
   if (existing) {
     redirect(`/admin/kampane/${id}?error=Táto+adresa+stránky+sa+už+používa.`);
   }
-  const requestedGalleryIds = new Set(formData.getAll("galleryItemId").map(String));
+  const submittedGalleryItems = new Map(
+    formData.getAll("galleryItemData").map(preparedMedia).flatMap((input) => {
+      if (typeof input.id !== "string") return [];
+      return [[input.id, input] as const];
+    }),
+  );
+  const requestedGalleryIds = new Set(submittedGalleryItems.keys());
   const retainedGalleryItems = currentCampaign.galleryItems.filter((item) => requestedGalleryIds.has(item.id));
   const removedGalleryItems = currentCampaign.galleryItems.filter((item) => !requestedGalleryIds.has(item.id));
   const uploadedMedia = await uploadedCampaignMedia(
@@ -271,22 +385,42 @@ export async function updateCampaign(id: string, formData: FormData) {
   const images = campaignImageData(data, uploadedMedia.images, currentCampaign.imageUrl);
 
   try {
-    const galleryUpdates = retainedGalleryItems.map((item, sortOrder) => prisma.campaignGalleryItem.update({
+    const orderedGalleryItems = uniqueGalleryPlacements([
+      ...retainedGalleryItems.map((item, fallbackOrder) => {
+        const input = submittedGalleryItems.get(item.id) ?? {};
+        return {
+          source: "current" as const,
+          id: item.id,
+          mediaType: item.mediaType === "VIDEO" ? "VIDEO" as const : "IMAGE" as const,
+          mediaUrl: item.mediaUrl,
+          caption: galleryCaption(input.caption),
+          placement: galleryPlacement(input.placement, item.mediaType === "VIDEO" ? "VIDEO" : "IMAGE"),
+          sortOrder: gallerySortOrder(input.sortOrder, fallbackOrder),
+        };
+      }),
+      ...uploadedMedia.galleryItems.map((item) => ({ source: "new" as const, ...item })),
+    ].sort((a, b) => a.sortOrder - b.sortOrder));
+    const galleryUpdates = orderedGalleryItems.flatMap((item, sortOrder) => item.source === "current" ? [prisma.campaignGalleryItem.update({
       where: { id: item.id },
-      data: { sortOrder },
-    }));
-    const galleryCreates = uploadedMedia.galleryItems.length > 0
+      data: { caption: item.caption || null, placement: item.placement, sortOrder },
+    })] : []);
+    const newGalleryItems = orderedGalleryItems.filter((item) => item.source === "new");
+    const galleryCreates = newGalleryItems.length > 0
       ? [prisma.campaignGalleryItem.createMany({
-        data: uploadedMedia.galleryItems.map((item, index) => ({
+        data: newGalleryItems.map((item) => ({
           campaignId: id,
-          ...item,
-          sortOrder: retainedGalleryItems.length + index,
+          mediaType: item.mediaType,
+          mediaUrl: item.mediaUrl,
+          caption: item.caption || null,
+          placement: item.placement,
+          sortOrder: orderedGalleryItems.indexOf(item),
         })),
       })]
       : [];
 
     await prisma.$transaction([
       prisma.campaign.update({ where: { id }, data: { ...data, ...images } }),
+      prisma.campaignAudit.create({ data: { campaignId: id, action: "UPDATED", actor } }),
       ...galleryUpdates,
       prisma.campaignGalleryItem.deleteMany({
         where: { id: { in: removedGalleryItems.map((item) => item.id) } },
@@ -314,7 +448,7 @@ export async function updateCampaign(id: string, formData: FormData) {
   ].filter((imageUrl) => imageUrl && !nextImages.has(imageUrl)))];
   if (replacedImages.length > 0) {
     try {
-      await removeCampaignMediaFiles(replacedImages);
+      await removeCampaignMediaIfUnreferenced(replacedImages);
     } catch (error) {
       console.error(`Pôvodné súbory kampane ${id} sa nepodarilo odstrániť:`, error);
     }
@@ -325,56 +459,189 @@ export async function updateCampaign(id: string, formData: FormData) {
   redirect(`/admin/kampane/${id}?saved=1`);
 }
 
-export async function toggleCampaign(id: string) {
+async function pauseConnectedMetaAd(campaign: {
+  metaAd: null | { id: string; metaCampaignId: string | null; metaAdSetId: string | null; metaAdId: string | null; status: string };
+}) {
+  const ad = campaign.metaAd;
+  if (!ad?.metaCampaignId || !ad.metaAdSetId || !ad.metaAdId || ad.status !== "ACTIVE") return;
+  await setRemoteMetaAdStatus({ campaignId: ad.metaCampaignId, adSetId: ad.metaAdSetId, adId: ad.metaAdId }, "PAUSED");
+  await prisma.metaAdCampaign.update({ where: { id: ad.id }, data: { status: "PAUSED", effectiveStatus: "PAUSED", lastError: null } });
+}
+
+async function readinessForCampaign(id: string) {
   const campaign = await prisma.campaign.findUniqueOrThrow({
     where: { id },
-    include: { metaAd: true },
+    include: { galleryItems: { orderBy: { sortOrder: "asc" } }, metaAd: true },
   });
-  if (
-    campaign.isActive
-    && campaign.metaAd?.metaCampaignId
-    && campaign.metaAd.metaAdSetId
-    && campaign.metaAd.metaAdId
-    && campaign.metaAd.status === "ACTIVE"
-  ) {
-    await setRemoteMetaAdStatus({
-      campaignId: campaign.metaAd.metaCampaignId,
-      adSetId: campaign.metaAd.metaAdSetId,
-      adId: campaign.metaAd.metaAdId,
-    }, "PAUSED");
-    await prisma.metaAdCampaign.update({
-      where: { id: campaign.metaAd.id },
-      data: { status: "PAUSED", effectiveStatus: "PAUSED" },
-    });
+  const duplicateSlug = await prisma.campaign.count({ where: { slug: campaign.slug, NOT: { id } } });
+  return {
+    campaign,
+    result: campaignReadiness(campaign, {
+      slugUnique: duplicateSlug === 0,
+      appUrl: process.env.APP_URL,
+      requireProductionUrl: process.env.NODE_ENV === "production",
+    }),
+  };
+}
+
+export async function publishCampaign(id: string) {
+  const { actor } = await requireAdmin();
+  const { campaign, result } = await readinessForCampaign(id);
+  if (!canTransitionCampaign(campaign.status, "PUBLISHED")) {
+    redirectWithCampaignError(`/admin/kampane/${id}`, "Túto kampaň nie je možné publikovať z aktuálneho stavu.");
   }
-  await prisma.campaign.update({
-    where: { id },
-    data: { isActive: !campaign.isActive },
-  });
+  if (!result.ready) {
+    const missing = result.items.filter((item) => item.level === "required" && !item.ready).map((item) => item.label).join(", ");
+    redirectWithCampaignError(`/admin/kampane/${id}`, `Publikovanie je zablokované. Doplňte: ${missing}.`);
+  }
+  const latest = await prisma.campaignPublication.aggregate({ where: { campaignId: id }, _max: { version: true } });
+  const now = new Date();
+  await prisma.$transaction([
+    prisma.campaignPublication.create({ data: { campaignId: id, version: (latest._max.version ?? 0) + 1, snapshot: publicationSnapshot(campaign) as Prisma.InputJsonValue, actor, publishedAt: now } }),
+    prisma.campaign.update({ where: { id }, data: { status: "PUBLISHED", publishedAt: now, publishAt: null, scheduleError: null } }),
+    prisma.campaignAudit.create({ data: { campaignId: id, action: "PUBLISHED", actor, metadata: { version: (latest._max.version ?? 0) + 1 } } }),
+  ]);
   revalidatePath("/admin");
   revalidatePath(`/kampan/${campaign.slug}`);
+  redirect(`/admin/kampane/${id}?published=1`);
+}
+
+export async function changeCampaignStatus(id: string, nextStatus: CampaignStatusValue) {
+  const { actor } = await requireAdmin();
+  const campaign = await prisma.campaign.findUniqueOrThrow({ where: { id }, include: { metaAd: true } });
+  if (!canTransitionCampaign(campaign.status, nextStatus)) {
+    redirectWithCampaignError(`/admin/kampane/${id}`, "Nepovolená zmena stavu kampane.");
+  }
+  if (nextStatus === "PUBLISHED") return publishCampaign(id);
+  if ((nextStatus === "PAUSED" || nextStatus === "ARCHIVED") && campaign.status === "PUBLISHED") {
+    try {
+      await pauseConnectedMetaAd(campaign);
+    } catch (error) {
+      console.error(`Meta pause before campaign ${nextStatus.toLowerCase()} failed:`, error);
+      redirectWithCampaignError(`/admin/kampane/${id}`, "Meta reklamu sa nepodarilo bezpečne pozastaviť. Kampaň zostala publikovaná; skúste to znova alebo ju pozastavte v Ads Manageri.");
+    }
+  }
+  const action = nextStatus === "READY" ? "READY" : nextStatus === "PAUSED" ? "PAUSED" : nextStatus === "ARCHIVED" ? "ARCHIVED" : "UPDATED";
+  await prisma.$transaction([
+    prisma.campaign.update({ where: { id }, data: { status: nextStatus, ...(nextStatus === "ARCHIVED" ? { publishAt: null, unpublishAt: null } : {}) } }),
+    prisma.campaignAudit.create({ data: { campaignId: id, action, actor } }),
+  ]);
+  revalidatePath("/admin");
+  revalidatePath(`/kampan/${campaign.slug}`);
+  redirect(`/admin/kampane/${id}?status=${nextStatus.toLowerCase()}`);
+}
+
+function scheduledDate(formData: FormData, key: string) {
+  const value = text(formData, key);
+  if (!value) return null;
+  const date = parseBratislavaDateTime(value);
+  if (!date) throw new Error("Neplatný dátum.");
+  return date;
+}
+
+export async function scheduleCampaign(id: string, formData: FormData) {
+  const { actor } = await requireAdmin();
+  const publishAt = scheduledDate(formData, "publishAt");
+  const unpublishAt = scheduledDate(formData, "unpublishAt");
+  if (publishAt && publishAt <= new Date()) redirectWithCampaignError(`/admin/kampane/${id}`, "Čas publikovania musí byť v budúcnosti.");
+  if (unpublishAt && unpublishAt <= new Date()) redirectWithCampaignError(`/admin/kampane/${id}`, "Čas ukončenia musí byť v budúcnosti.");
+  if (publishAt && unpublishAt && unpublishAt <= publishAt) redirectWithCampaignError(`/admin/kampane/${id}`, "Ukončenie musí byť neskôr než publikovanie.");
+  await prisma.$transaction([
+    prisma.campaign.update({ where: { id }, data: { publishAt, unpublishAt, scheduleError: null } }),
+    prisma.campaignAudit.create({ data: { campaignId: id, action: "SCHEDULED", actor, metadata: { publishAt: publishAt?.toISOString() ?? null, unpublishAt: unpublishAt?.toISOString() ?? null, timezone: "Europe/Bratislava" } } }),
+  ]);
+  revalidatePath(`/admin/kampane/${id}`);
+  redirect(`/admin/kampane/${id}?scheduled=1`);
+}
+
+async function uniqueDuplicateSlug(slug: string) {
+  for (let suffix = 1; suffix < 1000; suffix += 1) {
+    const candidate = `${slug}-kopia${suffix === 1 ? "" : `-${suffix}`}`;
+    if (!(await prisma.campaign.findUnique({ where: { slug: candidate }, select: { id: true } }))) return candidate;
+  }
+  throw new Error("Nepodarilo sa vytvoriť jedinečnú adresu kópie.");
+}
+
+export async function duplicateCampaign(id: string) {
+  const { actor } = await requireAdmin();
+  const source = await prisma.campaign.findUniqueOrThrow({ where: { id }, include: { galleryItems: { orderBy: { sortOrder: "asc" } } } });
+  const slug = await uniqueDuplicateSlug(source.slug);
+  const copy = await prisma.campaign.create({
+    data: {
+      ...Object.fromEntries(snapshotFields.map((field) => [field, source[field]])),
+      name: `${source.name} – kópia`.slice(0, 120), slug, status: "DRAFT", publishedAt: null, publishAt: null, unpublishAt: null, scheduleError: null,
+      galleryItems: { create: source.galleryItems.map(({ mediaUrl, mediaType, caption, placement, sortOrder }) => ({ mediaUrl, mediaType, caption, placement, sortOrder })) },
+      auditEntries: { create: { action: "DUPLICATED", actor, metadata: { sourceCampaignId: source.id } } },
+    } as Prisma.CampaignCreateInput,
+  });
+  revalidatePath("/admin");
+  redirect(`/admin/kampane/${copy.id}?duplicated=1`);
+}
+
+export async function restoreCampaignVersion(id: string, publicationId: string) {
+  const { actor } = await requireAdmin();
+  const publication = await prisma.campaignPublication.findFirst({ where: { id: publicationId, campaignId: id } });
+  if (!publication || !publication.snapshot || typeof publication.snapshot !== "object" || Array.isArray(publication.snapshot)) {
+    redirectWithCampaignError(`/admin/kampane/${id}`, "Publikovaná verzia neexistuje.");
+  }
+  const snapshot = publication.snapshot as Record<string, unknown>;
+  const gallery = Array.isArray(snapshot.galleryItems) ? snapshot.galleryItems : [];
+  const data = Object.fromEntries(snapshotFields.filter((field) => field !== "slug").map((field) => [field, snapshot[field]])) as Prisma.CampaignUpdateInput;
+  await prisma.$transaction(async (tx) => {
+    await tx.campaign.update({ where: { id }, data: { ...data, status: "DRAFT", publishedAt: null, publishAt: null, unpublishAt: null } });
+    await tx.campaignGalleryItem.deleteMany({ where: { campaignId: id } });
+    await tx.campaignGalleryItem.createMany({ data: gallery.flatMap((item, index) => {
+      if (!item || typeof item !== "object") return [];
+      const value = item as Record<string, unknown>;
+      if (typeof value.mediaUrl !== "string" || (value.mediaType !== "IMAGE" && value.mediaType !== "VIDEO")) return [];
+      const mediaType = value.mediaType;
+      return [{
+        campaignId: id,
+        mediaUrl: value.mediaUrl,
+        mediaType,
+        caption: galleryCaption(value.caption) || null,
+        placement: galleryPlacement(value.placement, mediaType),
+        sortOrder: index,
+      }];
+    }) });
+    await tx.campaignAudit.create({ data: { campaignId: id, action: "VERSION_RESTORED", actor, metadata: { publicationId, version: publication.version } } });
+  });
+  revalidatePath("/admin");
+  redirect(`/admin/kampane/${id}?restored=1`);
+}
+
+export async function saveCampaignExperiment(id: string, formData: FormData) {
+  const { actor } = await requireAdmin();
+  const requestedStatus = text(formData, "experimentStatus");
+  const status = ["DRAFT", "RUNNING", "PAUSED", "COMPLETED"].includes(requestedStatus) ? requestedStatus as "DRAFT" | "RUNNING" | "PAUSED" | "COMPLETED" : "DRAFT";
+  const current = await prisma.campaignExperiment.findUnique({ where: { campaignId: id } });
+  const changed = Boolean(current && current.status === "RUNNING" && ["variantHeadline", "variantDescription", "variantCtaText", "variantImageUrl"].some((key) => (current[key as keyof typeof current] ?? "") !== text(formData, key)));
+  await prisma.$transaction([
+    prisma.campaignExperiment.upsert({
+      where: { campaignId: id },
+      create: { campaignId: id, status, variantHeadline: text(formData, "variantHeadline").slice(0, 160) || null, variantDescription: text(formData, "variantDescription").slice(0, 800) || null, variantCtaText: text(formData, "variantCtaText").slice(0, 80) || null, variantImageUrl: text(formData, "variantImageUrl").slice(0, 1000) || null, startedAt: status === "RUNNING" ? new Date() : null, completedAt: status === "COMPLETED" ? new Date() : null, changedWhileRunning: changed },
+      update: { status, variantHeadline: text(formData, "variantHeadline").slice(0, 160) || null, variantDescription: text(formData, "variantDescription").slice(0, 800) || null, variantCtaText: text(formData, "variantCtaText").slice(0, 80) || null, variantImageUrl: text(formData, "variantImageUrl").slice(0, 1000) || null, ...(status === "RUNNING" && current?.status !== "RUNNING" ? { startedAt: new Date() } : {}), ...(status === "COMPLETED" ? { completedAt: new Date() } : {}), changedWhileRunning: current?.changedWhileRunning || changed },
+    }),
+    prisma.campaignAudit.create({ data: { campaignId: id, action: "EXPERIMENT_CHANGED", actor, metadata: { status, changedWhileRunning: changed } } }),
+  ]);
+  revalidatePath(`/admin/kampane/${id}`);
+  redirect(`/admin/kampane/${id}?experimentSaved=1`);
+}
+
+export async function applyExperimentVariant(id: string) {
+  const { actor } = await requireAdmin();
+  const experiment = await prisma.campaignExperiment.findUniqueOrThrow({ where: { campaignId: id } });
+  if (experiment.status !== "COMPLETED") redirectWithCampaignError(`/admin/kampane/${id}`, "Variant možno použiť až po ukončení experimentu.");
+  await prisma.$transaction([
+    prisma.campaign.update({ where: { id }, data: { status: "DRAFT", publishedAt: null, headline: experiment.variantHeadline ?? undefined, description: experiment.variantDescription ?? undefined, ctaText: experiment.variantCtaText ?? undefined, imageUrl: experiment.variantImageUrl ?? undefined } }),
+    prisma.campaignAudit.create({ data: { campaignId: id, action: "EXPERIMENT_CHANGED", actor, metadata: { appliedVariant: "B", restoredToDraft: true } } }),
+  ]);
+  revalidatePath("/admin");
+  redirect(`/admin/kampane/${id}?variantApplied=1`);
 }
 
 export async function deleteCampaign(id: string) {
-  const metaAd = await prisma.metaAdCampaign.findUnique({ where: { campaignId: id } });
-  if (metaAd?.metaCampaignId) await deleteRemoteMetaAd(metaAd.metaCampaignId);
-  const campaign = await prisma.campaign.findUniqueOrThrow({
-    where: { id },
-    include: { galleryItems: true },
-  });
-  await prisma.campaign.delete({ where: { id } });
-  try {
-    await removeCampaignMediaFiles([
-      ...campaignImageFields.map((field) => campaign[field.url]),
-      ...legacyCampaignImageUrlFields.map((field) => campaign[field]),
-      ...campaign.galleryItems.map((item) => item.mediaUrl),
-    ]);
-  } catch (error) {
-    console.error(`Súbory kampane ${id} sa nepodarilo odstrániť:`, error);
-  }
-  revalidatePath("/admin");
-  revalidatePath("/admin/leady");
-  redirect("/admin?deleted=1");
+  await changeCampaignStatus(id, "ARCHIVED");
 }
 
 export type LeadFormState = {
@@ -386,77 +653,121 @@ export async function createLead(
   _previousState: LeadFormState,
   formData: FormData,
 ): Promise<LeadFormState> {
-  const campaignId = text(formData, "campaignId");
-  const name = text(formData, "name");
-  const phone = text(formData, "phone");
-  const email = text(formData, "email");
-  const note = text(formData, "note");
-  const consent = formData.get("consent") === "on";
-
-  if (!campaignId || !name || !phone || !consent) {
-    return { success: false, message: "Vyplňte meno a telefón a potvrďte súhlas so spracovaním údajov." };
+  if (text(formData, "website")) return { success: true, message: "Ďakujeme, čoskoro sa vám ozveme." };
+  const parsed = parseLeadSubmission(formData);
+  if (!parsed.success) {
+    return { success: false, message: "Skontrolujte meno, telefón, e-mail, dĺžku poznámky a povinný súhlas." };
+  }
+  const data = parsed.data;
+  const formProof = verifyLeadFormToken(data.formToken, data.campaignId);
+  if (!formProof.valid) {
+    return {
+      success: false,
+      message: formProof.reason === "too_fast"
+        ? "Formulár bol odoslaný príliš rýchlo. Počkajte chvíľu a skúste to znova."
+        : "Platnosť formulára vypršala. Obnovte stránku a skúste to znova.",
+    };
+  }
+  const ip = await requestIp();
+  const rateLimit = await consumeRateLimit("lead", 8, 15 * 60 * 1000, ip);
+  if (!rateLimit) return { success: false, message: "Príliš veľa pokusov. Skúste to neskôr." };
+  if (!(await verifyTurnstile(data.turnstileToken, ip))) {
+    return { success: false, message: "Bezpečnostné overenie zlyhalo. Obnovte stránku a skúste to znova." };
   }
 
+  const campaignId = data.campaignId;
+  const normalizedPhone = normalizePhone(data.phone);
+  const normalizedEmail = data.email || null;
+  const submissionId = text(formData, "submissionId").replace(/[^a-zA-Z0-9-]/g, "").slice(0, 100);
+
   const campaign = await prisma.campaign.findUnique({ where: { id: campaignId } });
-  if (!campaign?.isActive || !campaign.formEnabled) {
+  if (campaign?.status !== "PUBLISHED" || !campaign.formEnabled) {
     return { success: false, message: "Formulár už nie je dostupný. Ozvite sa nám telefonicky alebo e-mailom." };
   }
 
-  const lead = await prisma.lead.create({
-    data: {
+  const possibleDuplicate = await prisma.lead.findFirst({
+    where: {
       campaignId,
-      name,
-      phone,
-      email: email || null,
-      interestType: campaign.offerType,
-      note: note || null,
-      consent,
-      campaignSlug: campaign.slug,
-      utmSource: text(formData, "utmSource").slice(0, 255) || null,
-      utmMedium: text(formData, "utmMedium").slice(0, 255) || null,
-      utmCampaign: text(formData, "utmCampaign").slice(0, 255) || null,
-      utmContent: text(formData, "utmContent").slice(0, 255) || null,
-      utmTerm: text(formData, "utmTerm").slice(0, 255) || null,
-      landingPage: text(formData, "landingPage").slice(0, 2000) || null,
-      referrer: text(formData, "referrer").slice(0, 2000) || null,
+      createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+      OR: [{ normalizedPhone }, ...(normalizedEmail ? [{ normalizedEmail }] : [])],
     },
+    select: { id: true },
   });
-
-  const emailData = {
-    leadId: lead.id,
-    name: lead.name,
-    phone: lead.phone,
-    email: lead.email,
-    interestType: lead.interestType,
-    note: lead.note,
-    campaignName: campaign.name,
-    campaignSlug: campaign.slug,
-    createdAt: lead.createdAt,
+  const dedupeKey = leadDedupeKey(
+    campaignId,
+    formProof.nonce,
+    JSON.stringify([data.name.toLowerCase(), normalizedPhone, normalizedEmail, data.note]),
+  );
+  const attribution = {
+    utmSource: data.utmSource,
+    utmMedium: data.utmMedium,
+    utmCampaign: data.utmCampaign,
+    utmContent: data.utmContent,
+    utmTerm: data.utmTerm,
+    landingPage: safeAttributionUrl(data.landingPage || "", true),
+    referrer: safeAttributionUrl(data.referrer || "", false),
   };
-  const [adminNotification, customerConfirmation] = await Promise.allSettled([
-    sendLeadNotification(emailData),
-    sendLeadConfirmation({
-      ...emailData,
-      campaignEmail: campaign.email,
-      campaignPhone: campaign.phone,
-    }),
-  ]);
-
-  if (adminNotification.status === "rejected") {
-    console.error(`Admin notifikáciu pre lead ${lead.id} sa nepodarilo odoslať:`, adminNotification.reason);
+  try {
+    await prisma.$transaction(async (tx) => tx.lead.create({
+      data: {
+      campaignId,
+      name: data.name,
+      phone: data.phone,
+      email: normalizedEmail,
+      normalizedPhone,
+      normalizedEmail: normalizedEmail || null,
+      interestType: campaign.offerType,
+      note: data.note,
+      consent: true,
+      consentAt: new Date(),
+      consentVersion: privacyPolicyVersion(),
+      dedupeKey,
+      possibleDuplicate: Boolean(possibleDuplicate),
+      variant: data.variant,
+      campaignSlug: campaign.slug,
+      ...attribution,
+      firstUtmSource: attribution.utmSource,
+      firstUtmMedium: attribution.utmMedium,
+      firstUtmCampaign: attribution.utmCampaign,
+      firstUtmContent: attribution.utmContent,
+      firstUtmTerm: attribution.utmTerm,
+      firstLandingPage: attribution.landingPage,
+      firstReferrer: attribution.referrer,
+      activities: { create: { type: "CREATED", actor: "Verejný formulár", message: "Lead bol vytvorený z kampane." } },
+      campaignEvents: { create: { type: "LEAD_CREATED" as const, variant: data.variant, campaign: { connect: { id: campaignId } }, ...(submissionId ? { eventId: `lead:${submissionId}` } : {}) } },
+      emailOutbox: { create: [
+        { kind: "ADMIN_NOTIFICATION" },
+        ...(normalizedEmail ? [{ kind: "CUSTOMER_CONFIRMATION" as const }] : []),
+      ] },
+    },
+    }));
+  } catch (error) {
+    if (typeof error === "object" && error && "code" in error && error.code === "P2002") {
+      return { success: true, message: "Požiadavku už evidujeme. Čoskoro sa vám ozveme." };
+    }
+    throw error;
   }
-  if (customerConfirmation.status === "rejected") {
-    console.error(`Potvrdenie pre lead ${lead.id} sa nepodarilo odoslať:`, customerConfirmation.reason);
-  }
 
-  const confirmationSent = customerConfirmation.status === "fulfilled" && customerConfirmation.value.sent;
+  await processEmailOutbox(normalizedEmail ? 2 : 1).catch(() => undefined);
 
   revalidatePath("/admin");
   revalidatePath("/admin/leady");
   return {
     success: true,
-    message: confirmationSent
-      ? "Potvrdenie sme poslali na zadaný e-mail. Čoskoro sa vám ozveme."
+    message: normalizedEmail
+      ? "Ďakujeme. Potvrdenie odošleme na zadaný e-mail a čoskoro sa vám ozveme."
       : "Ďakujeme, čoskoro sa vám ozveme.",
   };
+}
+
+function safeAttributionUrl(value: string, relativeAllowed: boolean) {
+  const cleaned = value.trim().slice(0, 2000);
+  if (!cleaned) return null;
+  if (relativeAllowed && cleaned.startsWith("/") && !cleaned.startsWith("//")) return cleaned;
+  try {
+    const url = new URL(cleaned);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : null;
+  } catch {
+    return null;
+  }
 }

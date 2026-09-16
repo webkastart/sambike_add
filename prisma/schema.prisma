@@ -4,13 +4,87 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
+}
+
+enum EmailDeliveryKind {
+  ADMIN_NOTIFICATION
+  CUSTOMER_CONFIRMATION
+}
+
+enum EmailDeliveryStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  BOOKED
+  COMPLETED
+  LOST
+  SPAM
+}
+
+enum LeadActivityType {
+  CREATED
+  STATUS_CHANGED
+  NOTE_ADDED
+  FOLLOW_UP_CHANGED
+  ASSIGNEE_CHANGED
+  VALUE_CHANGED
+  NOTIFICATION_SENT
+  NOTIFICATION_RETRIED
+  ANONYMIZED
+}
+
+enum CampaignEventType {
+  PAGE_VIEW
+  CTA_CLICK
+  PHONE_CLICK
+  FORM_START
+  LEAD_CREATED
+}
+
+enum CampaignStatus {
+  DRAFT
+  READY
+  PUBLISHED
+  PAUSED
+  ARCHIVED
+}
+
+enum CampaignExperimentStatus {
+  DRAFT
+  RUNNING
+  PAUSED
+  COMPLETED
+}
+
+enum CampaignAuditAction {
+  CREATED
+  UPDATED
+  READY
+  PUBLISHED
+  PAUSED
+  ARCHIVED
+  SCHEDULED
+  DUPLICATED
+  VERSION_RESTORED
+  EXPERIMENT_CHANGED
+  META_CREATED
+  META_ACTIVATED
+  META_PAUSED
+  META_BUDGET_CHANGED
+  META_EMERGENCY_PAUSE
 }
 
 model Campaign {
-  id               String   @id @default(cuid())
+  id               String                @id @default(cuid())
   name             String
-  slug             String   @unique
+  slug             String                @unique
   headline         String
   description      String
   imageUrl         String
@@ -19,19 +93,91 @@ model Campaign {
   galleryImage2Url String?
   galleryImage3Url String?
   priceText        String
-  ctaText          String   @default("Mám záujem")
+  ctaText          String                @default("Mám záujem")
   offerType        String
   phone            String
   email            String
-  formEnabled      Boolean  @default(true)
-  isActive         Boolean  @default(true)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  formEnabled      Boolean               @default(true)
+  status           CampaignStatus        @default(DRAFT)
+  publishedAt      DateTime?
+  publishAt        DateTime?
+  unpublishAt      DateTime?
+  scheduleError    String?
+  benefits         Json?
+  processSteps     Json?
+  faq              Json?
+  testimonials     Json?
+  openingHours     String?
+  address          String?
+  mapUrl           String?
+  trustText        String?
+  responseTimeText String?
+  finalCtaText     String?
+  sectionOrder     Json?
+  seoTitle         String?
+  seoDescription   String?
+  canonicalUrl     String?
+  ogTitle          String?
+  ogDescription    String?
+  ogImageUrl       String?
+  noIndex          Boolean               @default(false)
+  legalUrl         String                @default("/ochrana-osobnych-udajov")
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
   leads            Lead[]
-  metaAd            MetaAdCampaign?
-  galleryItems      CampaignGalleryItem[]
+  metaAd           MetaAdCampaign?
+  galleryItems     CampaignGalleryItem[]
+  events           CampaignEvent[]
+  publications     CampaignPublication[]
+  auditEntries     CampaignAudit[]
+  experiment       CampaignExperiment?
 
-  @@index([isActive])
+  @@index([status])
+  @@index([status, publishAt])
+  @@index([status, unpublishAt])
+}
+
+model CampaignPublication {
+  id          String   @id @default(cuid())
+  campaignId  String
+  version     Int
+  snapshot    Json
+  actor       String
+  publishedAt DateTime @default(now())
+  campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, version])
+  @@index([campaignId, publishedAt])
+}
+
+model CampaignAudit {
+  id         String              @id @default(cuid())
+  campaignId String
+  action     CampaignAuditAction
+  actor      String
+  metadata   Json?
+  createdAt  DateTime            @default(now())
+  campaign   Campaign            @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId, createdAt])
+}
+
+model CampaignExperiment {
+  id                  String                   @id @default(cuid())
+  campaignId          String                   @unique
+  status              CampaignExperimentStatus @default(DRAFT)
+  variantHeadline     String?
+  variantDescription  String?
+  variantCtaText      String?
+  variantImageUrl     String?
+  changedWhileRunning Boolean                  @default(false)
+  startedAt           DateTime?
+  completedAt         DateTime?
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+  campaign            Campaign                 @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([status])
 }
 
 model CampaignGalleryItem {
@@ -39,73 +185,207 @@ model CampaignGalleryItem {
   campaignId String
   mediaUrl   String   @map("imageUrl")
   mediaType  String   @default("IMAGE")
+  caption    String?
+  placement  String   @default("GALLERY")
   sortOrder  Int
   createdAt  DateTime @default(now())
   campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 
   @@index([campaignId, sortOrder])
+  @@index([campaignId, placement, sortOrder])
   @@map("CampaignGalleryImage")
 }
 
 model MetaAdCampaign {
-  id                  String    @id @default(cuid())
-  campaignId          String    @unique
-  metaCampaignId      String?   @unique
-  metaAdSetId         String?   @unique
-  metaCreativeId      String?   @unique
-  metaAdId            String?   @unique
-  status              String    @default("DRAFT")
-  effectiveStatus     String?
-  platforms           String
-  dailyBudgetCents    Int
-  radiusKm            Int
-  minAge              Int
-  maxAge              Int
-  primaryText         String
-  adHeadline          String
-  adDescription       String?
-  destinationUrl      String
-  startsAt            DateTime?
-  endsAt              DateTime?
-  spendCents          Int       @default(0)
-  impressions         Int       @default(0)
-  clicks              Int       @default(0)
-  metaLeads           Int       @default(0)
-  lastSyncedAt        DateTime?
-  lastError           String?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
-  campaign            Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  id               String            @id @default(cuid())
+  campaignId       String            @unique
+  metaCampaignId   String?           @unique
+  metaAdSetId      String?           @unique
+  metaCreativeId   String?           @unique
+  metaAdId         String?           @unique
+  status           String            @default("DRAFT")
+  effectiveStatus  String?
+  platforms        String
+  dailyBudgetCents Int
+  currency         String            @default("EUR")
+  mode             String            @default("sandbox")
+  radiusKm         Int
+  minAge           Int
+  maxAge           Int
+  primaryText      String
+  adHeadline       String
+  adDescription    String?
+  destinationUrl   String
+  startsAt         DateTime?
+  endsAt           DateTime?
+  spendCents       Int               @default(0)
+  impressions      Int               @default(0)
+  clicks           Int               @default(0)
+  metaLeads        Int               @default(0)
+  lastSyncedAt     DateTime?
+  lastPreviewAt    DateTime?
+  previewFacebookUrl String?
+  previewInstagramUrl String?
+  lastError        String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  campaign         Campaign          @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  dailyMetrics     MetaDailyMetric[]
 
   @@index([status])
 }
 
-model Lead {
-  id           String   @id @default(cuid())
-  campaignId   String
-  name         String
-  phone        String
-  email        String?
-  interestType String
-  note         String?
-  consent      Boolean
-  campaignSlug String?
-  utmSource    String?
-  utmMedium    String?
-  utmCampaign  String?
-  utmContent   String?
-  utmTerm      String?
-  landingPage  String?
-  referrer     String?
-  createdAt    DateTime @default(now())
-  campaign     Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+model MetaConnectionCheck {
+  id          String   @id @default("default")
+  mode        String
+  adAccountId String
+  currency    String?
+  accountName String?
+  accountStatus Int?
+  timezoneName String?
+  spendCapCents Int?
+  amountSpentCents Int?
+  verifiedAt  DateTime
+  updatedAt   DateTime @updatedAt
+}
 
+model Lead {
+  id                     String          @id @default(cuid())
+  campaignId             String
+  name                   String
+  phone                  String
+  email                  String?
+  normalizedPhone        String?
+  normalizedEmail        String?
+  interestType           String
+  note                   String?
+  consent                Boolean
+  consentAt              DateTime
+  consentVersion         String
+  dedupeKey              String          @unique
+  campaignSlug           String?
+  utmSource              String?
+  utmMedium              String?
+  utmCampaign            String?
+  utmContent             String?
+  utmTerm                String?
+  landingPage            String?
+  referrer               String?
+  anonymizedAt           DateTime?
+  status                 LeadStatus      @default(NEW)
+  assignedTo             String?
+  nextFollowUpAt         DateTime?
+  lostReason             String?
+  completedValueCents    Int?
+  completedValueCurrency String?
+  firstContactedAt       DateTime?
+  bookedAt               DateTime?
+  completedAt            DateTime?
+  closedAt               DateTime?
+  possibleDuplicate      Boolean         @default(false)
+  variant                 String?
+  firstUtmSource         String?
+  firstUtmMedium         String?
+  firstUtmCampaign       String?
+  firstUtmContent        String?
+  firstUtmTerm           String?
+  firstLandingPage       String?
+  firstReferrer          String?
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+  campaign               Campaign        @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  emailOutbox            EmailOutbox[]
+  activities             LeadActivity[]
+  campaignEvents         CampaignEvent[]
+
+  @@index([status])
   @@index([campaignId, createdAt])
+  @@index([campaignId, status, createdAt])
   @@index([createdAt])
+  @@index([nextFollowUpAt])
+  @@index([normalizedPhone, createdAt])
+  @@index([normalizedEmail, createdAt])
+}
+
+model LeadActivity {
+  id         String           @id @default(cuid())
+  leadId     String
+  type       LeadActivityType
+  actor      String
+  fromStatus LeadStatus?
+  toStatus   LeadStatus?
+  message    String?
+  metadata   Json?
+  createdAt  DateTime         @default(now())
+  lead       Lead             @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId, createdAt])
+}
+
+model CampaignEvent {
+  id         String            @id @default(cuid())
+  campaignId String
+  leadId     String?
+  eventId    String?           @unique
+  type       CampaignEventType
+  variant    String?
+  occurredAt DateTime          @default(now())
+  campaign   Campaign          @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  lead       Lead?             @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  @@index([type, campaignId, occurredAt])
+  @@index([campaignId, occurredAt])
+}
+
+model MetaDailyMetric {
+  id               String         @id @default(cuid())
+  metaAdCampaignId String
+  date             DateTime       @db.Date
+  spendCents       Int            @default(0)
+  impressions      Int            @default(0)
+  clicks           Int            @default(0)
+  metaLeads        Int            @default(0)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  metaAdCampaign   MetaAdCampaign @relation(fields: [metaAdCampaignId], references: [id], onDelete: Cascade)
+
+  @@unique([metaAdCampaignId, date])
+  @@index([date])
 }
 
 model LeadNotificationRecipient {
   email     String   @id
   enabled   Boolean  @default(true)
   updatedAt DateTime @updatedAt
+}
+
+model EmailOutbox {
+  id                String              @id @default(cuid())
+  leadId            String
+  kind              EmailDeliveryKind
+  status            EmailDeliveryStatus @default(PENDING)
+  attempts          Int                 @default(0)
+  nextAttemptAt     DateTime            @default(now())
+  leaseUntil        DateTime?
+  lastAttemptAt     DateTime?
+  sentAt            DateTime?
+  providerMessageId String?
+  lastError         String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  lead              Lead                @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@unique([leadId, kind])
+  @@index([status, nextAttemptAt])
+  @@index([leaseUntil])
+}
+
+model RateLimitBucket {
+  key         String   @id
+  count       Int
+  windowStart DateTime
+  expiresAt   DateTime
+  updatedAt   DateTime @updatedAt
+
+  @@index([expiresAt])
 }

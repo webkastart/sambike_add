@@ -7,12 +7,16 @@ type Action = () => Promise<void>;
 
 export function MetaAdControls({
   active,
+  canActivate,
+  hasRemote,
   startAction,
   pauseAction,
   syncAction,
   deleteAction,
 }: {
   active: boolean;
+  canActivate: boolean;
+  hasRemote: boolean;
   startAction: Action;
   pauseAction: Action;
   syncAction: Action;
@@ -36,7 +40,7 @@ export function MetaAdControls({
       ) : (
         <button
           type="button"
-          disabled={pending}
+          disabled={pending || !canActivate}
           onClick={() => {
             if (window.confirm("Spustiť reklamu? Meta môže od tejto chvíle míňať nastavený denný rozpočet.")) {
               run(startAction);
@@ -45,18 +49,19 @@ export function MetaAdControls({
           className="inline-flex items-center gap-2 rounded-[3px] bg-[var(--accent-dark)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#075eac] disabled:opacity-50"
         >
           {pending ? <LoaderCircle size={15} className="animate-spin" /> : <Play size={15} />}
-          Spustiť reklamu
+          {canActivate ? "Spustiť Meta reklamu" : "Aktivácia nie je dostupná"}
         </button>
       )}
-      <button
+      {!active && !canActivate && <span className="text-xs text-[#9a6b25]">Vyžaduje live režim, overené spojenie a publikovanú landing page.</span>}
+      {hasRemote && <button
         type="button"
         disabled={pending}
         onClick={() => run(syncAction)}
         className="inline-flex items-center gap-2 text-sm font-medium text-[#59655c] hover:text-[var(--ink)] disabled:opacity-50"
       >
         <RefreshCw size={14} /> Aktualizovať výsledky
-      </button>
-      <button
+      </button>}
+      {hasRemote && <button
         type="button"
         disabled={pending}
         onClick={() => {
@@ -67,7 +72,7 @@ export function MetaAdControls({
         className="inline-flex items-center gap-2 text-sm font-medium text-[#a14d49] hover:text-[#7d2e2a] disabled:opacity-50"
       >
         <Trash2 size={14} /> Odstrániť
-      </button>
+      </button>}
     </div>
   );
 }

@@ -25,6 +25,9 @@ export type MetaConnectionSummary = {
   pageId: string;
   instagramConnected: boolean;
   apiVersion: string;
+  mode: "sandbox" | "live";
+  maxCampaignDailyBudgetCents: number;
+  maxGlobalDailyBudgetCents: number;
 };
 
 export type MetaAdDraftInput = {
@@ -65,6 +68,15 @@ export class MetaAdsError extends Error {
   }
 }
 
+export function getMetaMode(): "sandbox" | "live" {
+  return process.env.META_MODE?.trim().toLowerCase() === "live" ? "live" : "sandbox";
+}
+
+function positiveCents(name: string, fallback: number) {
+  const value = Number.parseInt(process.env[name] ?? "", 10);
+  return Number.isSafeInteger(value) && value > 0 ? value : fallback;
+}
+
 function identifier(value: string | undefined, prefix = "") {
   const cleaned = value?.trim().replace(prefix, "") ?? "";
   return /^\d+$/.test(cleaned) ? cleaned : "";
@@ -98,6 +110,9 @@ export function getMetaConnectionSummary(): MetaConnectionSummary {
     pageId,
     instagramConnected: Boolean(identifier(process.env.META_INSTAGRAM_ACTOR_ID)),
     apiVersion: apiVersion(),
+    mode: getMetaMode(),
+    maxCampaignDailyBudgetCents: positiveCents("META_MAX_CAMPAIGN_DAILY_BUDGET_CENTS", 5_000),
+    maxGlobalDailyBudgetCents: positiveCents("META_MAX_GLOBAL_DAILY_BUDGET_CENTS", 10_000),
   };
 }
 
@@ -183,16 +198,25 @@ function publicImageUrl(config: MetaConfig, imageUrl: string) {
 export async function verifyMetaConnection() {
   const config = getMetaConfig();
   const [account, page] = await Promise.all([
-    metaRequest<{ id: string; name: string; account_status?: number; currency?: string }>(
+    metaRequest<{ id: string; name: string; account_status?: number; currency?: string; timezone_name?: string; spend_cap?: string; amount_spent?: string }>(
       `act_${config.adAccountId}`,
-      { params: { fields: "id,name,account_status,currency" } },
+      { params: { fields: "id,name,account_status,currency,timezone_name,spend_cap,amount_spent" } },
     ),
     metaRequest<{ id: string; name: string }>(config.pageId, { params: { fields: "id,name" } }),
   ]);
-  return { accountName: account.name, pageName: page.name, currency: account.currency ?? "" };
+  return {
+    accountName: account.name,
+    pageName: page.name,
+    accountStatus: account.account_status ?? null,
+    currency: account.currency ?? "",
+    timezoneName: account.timezone_name ?? "",
+    spendCapCents: account.spend_cap ? Number.parseInt(account.spend_cap, 10) || null : null,
+    amountSpentCents: account.amount_spent ? Number.parseInt(account.amount_spent, 10) || null : null,
+  };
 }
 
 export async function createRemoteMetaAd(source: MetaCampaignSource, input: MetaAdDraftInput) {
+  if (getMetaMode() !== "live") throw new MetaAdsError("Sandbox režim nevytvára žiadne objekty v reálnom reklamnom účte.");
   const config = getMetaConfig();
   if (input.platforms.includes("instagram") && !config.instagramActorId) {
     throw new MetaAdsError("Pre Instagram doplňte META_INSTAGRAM_ACTOR_ID alebo vyberte iba Facebook.");
@@ -296,6 +320,9 @@ export async function setRemoteMetaAdStatus(
   ids: { campaignId: string; adSetId: string; adId: string },
   status: "ACTIVE" | "PAUSED",
 ) {
+  if (status === "ACTIVE" && getMetaMode() !== "live") {
+    throw new MetaAdsError("Sandbox režim nikdy nemôže aktivovať reklamu.");
+  }
   if (status === "PAUSED") {
     await metaRequest(ids.campaignId, { method: "POST", params: { status } });
     return;
@@ -311,8 +338,14 @@ export async function setRemoteMetaAdStatus(
   }
 }
 
+export async function setRemoteMetaAdBudget(adSetId: string, dailyBudgetCents: number) {
+  if (getMetaMode() !== "live") throw new MetaAdsError("Sandbox režim nemení rozpočet v reálnom reklamnom účte.");
+  await metaRequest(adSetId, { method: "POST", params: { daily_budget: dailyBudgetCents } });
+}
+
 type MetaInsightsResponse = {
   data?: Array<{
+    date_start?: string;
     spend?: string;
     impressions?: string;
     clicks?: string;
@@ -321,12 +354,15 @@ type MetaInsightsResponse = {
 };
 
 export async function syncRemoteMetaAd(metaCampaignId: string) {
-  const [campaign, insights] = await Promise.all([
+  const [campaign, insights, dailyInsights] = await Promise.all([
     metaRequest<{ status?: string; effective_status?: string }>(metaCampaignId, {
       params: { fields: "status,effective_status" },
     }),
     metaRequest<MetaInsightsResponse>(`${metaCampaignId}/insights`, {
       params: { fields: "spend,impressions,clicks,actions", date_preset: "maximum" },
+    }),
+    metaRequest<MetaInsightsResponse>(`${metaCampaignId}/insights`, {
+      params: { fields: "spend,impressions,clicks,actions,date_start", date_preset: "maximum", time_increment: 1, limit: 5000 },
     }),
   ]);
   const row = insights.data?.[0];
@@ -341,9 +377,55 @@ export async function syncRemoteMetaAd(metaCampaignId: string) {
     impressions: Math.max(0, Number.parseInt(row?.impressions ?? "0", 10) || 0),
     clicks: Math.max(0, Number.parseInt(row?.clicks ?? "0", 10) || 0),
     metaLeads: leadActions.reduce((sum, action) => sum + (Number.parseInt(action.value, 10) || 0), 0),
+    dailyMetrics: (dailyInsights.data ?? []).flatMap((daily) => {
+      if (!daily.date_start || !/^\d{4}-\d{2}-\d{2}$/.test(daily.date_start)) return [];
+      const actions = daily.actions?.filter(({ action_type }) => action_type === "lead" || action_type === "onsite_conversion.lead_grouped") ?? [];
+      return [{
+        date: new Date(`${daily.date_start}T00:00:00.000Z`),
+        spendCents: Math.max(0, Math.round((Number.parseFloat(daily.spend ?? "0") || 0) * 100)),
+        impressions: Math.max(0, Number.parseInt(daily.impressions ?? "0", 10) || 0),
+        clicks: Math.max(0, Number.parseInt(daily.clicks ?? "0", 10) || 0),
+        metaLeads: actions.reduce((sum, action) => sum + (Number.parseInt(action.value, 10) || 0), 0),
+      }];
+    }),
   };
 }
 
 export async function deleteRemoteMetaAd(metaCampaignId: string) {
   await metaRequest(metaCampaignId, { method: "DELETE" });
+}
+
+async function fetchPreviewFormat(metaAdId: string, adFormat: "DESKTOP_FEED_STANDARD" | "INSTAGRAM_STANDARD") {
+  const payload = await metaRequest<{ data?: Array<{ body?: string }> }>(`${metaAdId}/previews`, { params: { ad_format: adFormat } });
+  const body = payload.data?.[0]?.body ?? "";
+  const match = body.match(/src=["'](https:\/\/[^"']+)["']/i);
+  if (!match) throw new MetaAdsError("Meta API nevrátilo podporovaný náhľad reklamy.");
+  const url = new URL(match[1].replaceAll("&amp;", "&"));
+  if (!/(^|\.)facebook\.com$/.test(url.hostname) && !/(^|\.)instagram\.com$/.test(url.hostname)) {
+    throw new MetaAdsError("Meta API vrátilo neplatnú adresu náhľadu.");
+  }
+  return url.toString();
+}
+
+export async function fetchMetaAdPreviews(metaAdId: string, platforms: string) {
+  const facebook = platforms.includes("facebook") ? await fetchPreviewFormat(metaAdId, "DESKTOP_FEED_STANDARD").catch(() => null) : null;
+  const instagram = platforms.includes("instagram") ? await fetchPreviewFormat(metaAdId, "INSTAGRAM_STANDARD").catch(() => null) : null;
+  if (!facebook && !instagram) throw new MetaAdsError("Meta API nevrátilo žiadny podporovaný náhľad reklamy.");
+  return { previewFacebookUrl: facebook, previewInstagramUrl: instagram };
+}
+
+export function metaAdsManagerUrl(metaCampaignId?: string | null) {
+  const account = getMetaConnectionSummary().adAccountId;
+  if (!account) return "https://business.facebook.com/adsmanager";
+  const url = new URL("https://business.facebook.com/adsmanager/manage/campaigns");
+  url.searchParams.set("act", account);
+  if (metaCampaignId) url.searchParams.set("selected_campaign_ids", metaCampaignId);
+  return url.toString();
+}
+
+export function metaBillingUrl() {
+  const account = getMetaConnectionSummary().adAccountId;
+  const url = new URL("https://business.facebook.com/billing_hub/accounts/details/");
+  if (account) url.searchParams.set("act", account);
+  return url.toString();
 }

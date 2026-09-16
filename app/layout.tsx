@@ -11,11 +11,11 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     metadataBase,
     title: { default: "SAMBIKE kampane", template: "%s · SAMBIKE" },
-    description: "Správa reklamných kampaní, ich stránok a záujemcov pre SAMBIKE.",
+    description: "Servis bicyklov, predaj dielov a doplnkov SAMBIKE v Spišskej Novej Vsi.",
     icons: { icon: "/brand/sambike-mark.png" },
     openGraph: {
       title: "SAMBIKE kampane",
-      description: "Reklamné kampane a ponuky SAMBIKE.",
+      description: "Servis bicyklov, diely a doplnky s osobným prístupom.",
       images: ["/og.png"],
     },
     twitter: { card: "summary_large_image", images: ["/og.png"] },

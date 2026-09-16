@@ -6,7 +6,7 @@ import { CampaignForm } from "@/components/campaign-form";
 export default async function NewCampaignPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; sablona?: string }>;
 }) {
   const query = await searchParams;
   return (
@@ -22,7 +22,7 @@ export default async function NewCampaignPage({
           {query.error}
         </p>
       )}
-      <CampaignForm action={createCampaign} submitLabel="Vytvoriť kampaň" />
+      <CampaignForm action={createCampaign} submitLabel="Vytvoriť koncept" template={query.sablona === "rental" || query.sablona === "seasonal" ? query.sablona : "service"} />
     </>
   );
 }

@@ -1,5 +1,7 @@
 "use client";
 
+import { parseMarketingConsent } from "@/lib/consent";
+
 export type AnalyticsEvent = "PageView" | "CTA click" | "Phone click" | "Form start" | "Lead";
 
 export type Attribution = {
@@ -74,7 +76,24 @@ export function readAttribution(campaignSlug: string): Attribution {
 export function trackEvent(event: AnalyticsEvent, parameters: Record<string, string> = {}) {
   window.dispatchEvent(new CustomEvent("sambike:analytics", { detail: { event, ...parameters } }));
 
-  if (!window.fbq) return;
+  const internalTypes: Partial<Record<AnalyticsEvent, string>> = {
+    "PageView": "PAGE_VIEW",
+    "CTA click": "CTA_CLICK",
+    "Phone click": "PHONE_CLICK",
+    "Form start": "FORM_START",
+  };
+  const internalType = internalTypes[event];
+  if (internalType && parameters.campaign_slug) {
+    const eventId = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+    void fetch("/api/events", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ campaignSlug: parameters.campaign_slug, type: internalType, eventId, variant: parameters.variant }),
+      keepalive: true,
+    }).catch(() => undefined);
+  }
+
+  if (!window.fbq || parseMarketingConsent(document.cookie) !== "granted") return;
   if (event === "PageView" || event === "Lead") {
     window.fbq("track", event, parameters);
   } else {

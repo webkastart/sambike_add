@@ -1,10 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { Campaign, MetaAdCampaign } from "@/generated/prisma/client";
-import type { MetaConnectionSummary } from "@/lib/meta-ads";
+import { metaAdsManagerUrl, type MetaConnectionSummary } from "@/lib/meta-ads";
 import { MetaAdControls } from "@/components/meta-ad-controls";
 
-type CampaignSummary = Pick<Campaign, "id" | "name" | "slug" | "headline" | "description" | "imageUrl" | "priceText">;
+type CampaignSummary = Pick<Campaign, "id" | "name" | "slug" | "headline" | "description" | "imageUrl" | "priceText" | "status">;
 
 const statusLabels: Record<string, string> = {
   ACTIVE: "Aktívna",
@@ -35,6 +35,7 @@ export function MetaAdSection({
   pauseAction,
   syncAction,
   deleteAction,
+  budgetAction,
   feedback,
 }: {
   campaign: CampaignSummary;
@@ -46,6 +47,7 @@ export function MetaAdSection({
   pauseAction: () => Promise<void>;
   syncAction: () => Promise<void>;
   deleteAction: () => Promise<void>;
+  budgetAction: (formData: FormData) => Promise<void>;
   feedback: { error?: string; message?: string };
 }) {
   const effectiveStatus = ad?.effectiveStatus || ad?.status || "UNKNOWN";
@@ -62,8 +64,8 @@ export function MetaAdSection({
           </p>
         </div>
         {connection.configured && (
-          <span className="inline-flex items-center gap-2 text-xs font-medium text-[#61705f]">
-            <span className="size-2 rounded-full bg-[#7da33e]" /> Meta účet je nastavený
+          <span className={`inline-flex items-center gap-2 text-xs font-bold uppercase ${connection.mode === "live" ? "text-[#a1433e]" : "text-[#4e6a37]"}`}>
+            <span className={`size-2 rounded-full ${connection.mode === "live" ? "bg-[#a1433e]" : "bg-[#7da33e]"}`} /> {connection.mode} režim
           </span>
         )}
       </div>
@@ -79,7 +81,7 @@ export function MetaAdSection({
             Otvoriť nastavenia →
           </Link>
         </div>
-      ) : ad?.metaCampaignId ? (
+      ) : ad && (ad.metaCampaignId || ad.mode === "sandbox") ? (
         <div className="mt-9">
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
             <span className="inline-flex items-center gap-2 text-sm font-semibold">
@@ -87,6 +89,7 @@ export function MetaAdSection({
               {statusLabels[effectiveStatus] ?? effectiveStatus}
             </span>
             <span className="text-xs text-[#8a928c]">Denný limit {money(ad.dailyBudgetCents)}</span>
+            <span className="text-xs font-semibold uppercase text-[#8a928c]">{ad.mode}</span>
             <span className="text-xs text-[#8a928c]">{ad.platforms.split(",").map((value) => value === "facebook" ? "Facebook" : "Instagram").join(" + ")}</span>
           </div>
 
@@ -105,11 +108,16 @@ export function MetaAdSection({
             <div><p className="text-xs text-[#8a928c]">Termín</p><p className="mt-1">{dateTime(ad.startsAt)} – {dateTime(ad.endsAt)}</p></div>
           </div>
           {ad.lastError && <p className="mt-6 text-sm font-medium text-[#a1433e]">{ad.lastError}</p>}
+          {ad.previewFacebookUrl || ad.previewInstagramUrl ? <div className="mt-5 flex flex-wrap gap-5 text-sm font-semibold text-[var(--accent-dark)]">{ad.previewFacebookUrl && <a href={ad.previewFacebookUrl} target="_blank" rel="noreferrer">Facebook Meta preview →</a>}{ad.previewInstagramUrl && <a href={ad.previewInstagramUrl} target="_blank" rel="noreferrer">Instagram Meta preview →</a>}</div> : <p className="mt-5 text-sm text-[#737c75]">Meta preview nie je dostupné. Náhľad landing page nie je Meta preview.</p>}
+          {ad.metaCampaignId && <a href={metaAdsManagerUrl(ad.metaCampaignId)} target="_blank" rel="noreferrer" className="ml-5 mt-5 inline-block text-sm font-semibold text-[#536057]">Otvoriť v Meta Ads Manageri →</a>}
           <p className="mt-6 text-xs text-[#929a94]">
             {ad.lastSyncedAt ? `Výsledky aktualizované ${dateTime(ad.lastSyncedAt)}` : "Výsledky ešte neboli synchronizované."}
           </p>
+          <form action={budgetAction} className="mt-6 flex max-w-sm items-end gap-4"><label className="flex-1"><span className="text-xs font-semibold uppercase tracking-[.12em] text-[#747d76]">Denný rozpočet v EUR</span><input className="admin-field" name="dailyBudget" type="number" min="5" max={connection.maxCampaignDailyBudgetCents / 100} defaultValue={ad.dailyBudgetCents / 100} required /></label><button type="submit" className="pb-3 text-sm font-semibold text-[var(--accent-dark)]">Uložiť</button></form>
           <MetaAdControls
             active={active}
+            canActivate={connection.mode === "live" && ad.mode === "live" && campaign.status === "PUBLISHED"}
+            hasRemote={Boolean(ad.metaCampaignId)}
             startAction={startAction}
             pauseAction={pauseAction}
             syncAction={syncAction}
@@ -145,7 +153,7 @@ export function MetaAdSection({
             </div>
             <label>
               <span className="text-xs font-semibold uppercase tracking-[.12em] text-[#747d76]">Denný rozpočet</span>
-              <div className="relative"><input className="admin-field pr-8" name="dailyBudget" type="number" min="5" max="1000" step="1" defaultValue={ad ? ad.dailyBudgetCents / 100 : 10} required /><span className="absolute bottom-3 right-0 text-sm text-[#879088]">€</span></div>
+              <div className="relative"><input className="admin-field pr-8" name="dailyBudget" type="number" min="5" max={connection.maxCampaignDailyBudgetCents / 100} step="1" defaultValue={ad ? ad.dailyBudgetCents / 100 : 10} required /><span className="absolute bottom-3 right-0 text-sm text-[#879088]">€</span></div><span className="mt-1 block text-xs text-[#8a928c]">Maximum {(connection.maxCampaignDailyBudgetCents / 100).toFixed(2)} €. Vyšší nezvyčajný rozpočet aplikácia odmietne.</span>
             </label>
             <label>
               <span className="text-xs font-semibold uppercase tracking-[.12em] text-[#747d76]">Okruh od Spišskej Novej Vsi</span>
@@ -179,7 +187,7 @@ export function MetaAdSection({
 
           <div className="mt-7 flex flex-wrap items-center gap-4">
             <button type="submit" className="rounded-[3px] bg-[var(--accent-dark)] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#075eac]">
-              {ad?.status === "ERROR" ? "Skúsiť vytvoriť znova" : "Vytvoriť pozastavenú reklamu"}
+              {ad?.status === "ERROR" ? "Skúsiť vytvoriť znova" : connection.mode === "sandbox" ? "Vytvoriť sandbox koncept" : "Vytvoriť pozastavenú reklamu"}
             </button>
             <span className="text-xs text-[#89918b]">Vytvorenie ešte nespustí čerpanie rozpočtu.</span>
           </div>

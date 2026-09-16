@@ -5,6 +5,7 @@ import {
   removeCampaignMedia,
   validateUploadedCampaignMedia,
 } from "@/lib/campaign-media";
+import { isAdminAuthenticated } from "@/lib/admin-auth";
 
 export const runtime = "nodejs";
 
@@ -37,6 +38,7 @@ function validUploadTarget(filename: unknown): filename is string {
 }
 
 export async function POST(request: Request) {
+  if (!(await isAdminAuthenticated())) return Response.json({ error: "Vyžaduje sa prihlásenie." }, { status: 401 });
   if (!requestHasSameOrigin(request)) return errorResponse(new CampaignMediaError("Neplatný pôvod požiadavky."), 403);
 
   try {
@@ -95,6 +97,7 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  if (!(await isAdminAuthenticated())) return Response.json({ error: "Vyžaduje sa prihlásenie." }, { status: 401 });
   if (!requestHasSameOrigin(request)) return errorResponse(new CampaignMediaError("Neplatný pôvod požiadavky."), 403);
 
   try {

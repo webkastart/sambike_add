@@ -1,15 +1,17 @@
 import { BadgeCheck, Mail, Megaphone } from "lucide-react";
 import { updateLeadNotificationRecipients } from "@/app/actions";
-import { verifyMetaConnectionAction } from "@/app/meta-actions";
+import { emergencyPauseAllMetaAds, verifyMetaConnectionAction } from "@/app/meta-actions";
 import { getNotificationRecipientSettings } from "@/lib/notification-recipients";
-import { getMetaConnectionSummary } from "@/lib/meta-ads";
+import { getMetaConnectionSummary, metaBillingUrl } from "@/lib/meta-ads";
+import { prisma } from "@/lib/prisma";
+import { ConfirmActionButton } from "@/components/confirm-action-button";
 
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ saved?: string; metaVerified?: string; metaError?: string }>;
+    searchParams: Promise<{ saved?: string; metaVerified?: string; metaError?: string; emergencyPaused?: string; emergencyFailed?: string }>;
 }) {
   const [query, recipients] = await Promise.all([
     searchParams,
@@ -18,6 +20,8 @@ export default async function SettingsPage({
   const activeCount = recipients.filter((recipient) => recipient.enabled).length;
   const from = process.env.RESEND_FROM_EMAIL?.trim();
   const meta = getMetaConnectionSummary();
+  const metaCheck = await prisma.metaConnectionCheck.findUnique({ where: { id: "default" } });
+  const metaVerifiedForCurrentMode = metaCheck?.mode === meta.mode && metaCheck.adAccountId === meta.adAccountId;
 
   return (
     <>
@@ -105,6 +109,7 @@ export default async function SettingsPage({
           </p>
         )}
         {query.metaError && <p className="mt-6 text-sm font-medium text-[#a1433e]">{query.metaError}</p>}
+        {query.emergencyPaused && <p className={`mt-6 text-sm font-medium ${query.emergencyFailed === "0" ? "text-[#4e6a37]" : "text-[#a1433e]"}`}>Núdzovo pozastavené: {query.emergencyPaused}. Zlyhania: {query.emergencyFailed}. {query.emergencyFailed !== "0" && "Skontrolujte jednotlivé reklamy v Ads Manageri."}</p>}
 
         <dl className="mt-7 grid gap-x-8 gap-y-4 border-y border-[var(--line)] py-6 text-sm sm:grid-cols-[10rem_1fr]">
           <dt className="text-[#8a928c]">Stav</dt>
@@ -112,6 +117,8 @@ export default async function SettingsPage({
             <span className={`size-2 rounded-full ${meta.configured ? "bg-[#7da33e]" : "bg-[#c0756e]"}`} />
             {meta.configured ? "Nastavené" : "Nedokončené"}
           </dd>
+          <dt className="text-[#8a928c]">Režim</dt>
+          <dd className={`font-bold uppercase ${meta.mode === "live" ? "text-[#a1433e]" : "text-[#4e6a37]"}`}>{meta.mode}{!metaVerifiedForCurrentMode ? " · vyžaduje nové overenie" : " · overené"}</dd>
           <dt className="text-[#8a928c]">Reklamný účet</dt>
           <dd className="font-medium">{meta.adAccountId ? `act_${meta.adAccountId}` : "—"}</dd>
           <dt className="text-[#8a928c]">Facebook stránka</dt>
@@ -120,6 +127,20 @@ export default async function SettingsPage({
           <dd className="font-medium">{meta.instagramConnected ? "Pripojený" : "Nie je pripojený"}</dd>
           <dt className="text-[#8a928c]">API verzia</dt>
           <dd className="font-medium">{meta.apiVersion}</dd>
+          <dt className="text-[#8a928c]">Mena účtu</dt>
+          <dd className="font-medium">{metaCheck?.currency || "Neoverené"}</dd>
+          <dt className="text-[#8a928c]">Časové pásmo účtu</dt>
+          <dd className="font-medium">{metaCheck?.timezoneName || "Neoverené"}</dd>
+          <dt className="text-[#8a928c]">Stav účtu</dt>
+          <dd className="font-medium">{metaCheck?.accountStatus == null ? "Neoverené" : metaCheck.accountStatus === 1 ? "Aktívny" : `Meta status ${metaCheck.accountStatus}`}</dd>
+          <dt className="text-[#8a928c]">Spending limit</dt>
+          <dd className="font-medium">{metaCheck?.spendCapCents == null ? "Overte v Meta Ads Manageri" : `${(metaCheck.spendCapCents / 100).toFixed(2)} ${metaCheck.currency || ""}`}</dd>
+          <dt className="text-[#8a928c]">Amount spent</dt>
+          <dd className="font-medium">{metaCheck?.amountSpentCents == null ? "Neoverené" : `${(metaCheck.amountSpentCents / 100).toFixed(2)} ${metaCheck.currency || ""}`}</dd>
+          <dt className="text-[#8a928c]">Platobná metóda</dt>
+          <dd className="font-medium">Overte v Meta Ads Manageri</dd>
+          <dt className="text-[#8a928c]">Rozpočtové limity</dt>
+          <dd className="font-medium">{(meta.maxCampaignDailyBudgetCents / 100).toFixed(2)} € / kampaň · {(meta.maxGlobalDailyBudgetCents / 100).toFixed(2)} € globálne denne</dd>
         </dl>
 
         {!meta.configured && (
@@ -139,6 +160,8 @@ export default async function SettingsPage({
             </button>
           </form>
         )}
+        <div className="mt-6 flex flex-wrap items-center gap-5"><a href={metaBillingUrl()} target="_blank" rel="noreferrer" className="text-sm font-semibold text-[#536057]">Otvoriť platby a fakturáciu v Meta Ads Manageri →</a><ConfirmActionButton action={emergencyPauseAllMetaAds} label="Pozastaviť všetky Meta reklamy" confirmation="Núdzovo pozastaviť všetky aktívne Meta reklamy? Každá sa spracuje samostatne a výsledok sa audituje." /></div>
+        <p className="mt-3 text-xs leading-relaxed text-[#8a928c]">Sambike Ads neukladá karty ani fakturačné údaje. Režim sa mení iba cez META_MODE v serverovom prostredí; live sa nikdy nezapne automaticky.</p>
       </section>
     </>
   );
