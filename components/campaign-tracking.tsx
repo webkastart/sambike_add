@@ -60,7 +60,7 @@ export function CampaignTracking({ campaignSlug, pixelId, variant = "A" }: { cam
         </aside>
       )}
       {consent !== null && !preferencesOpen && (
-        <button type="button" onClick={() => setPreferencesOpen(true)} className="fixed bottom-3 left-3 z-[60] rounded bg-[var(--ink)] px-3 py-2 text-xs text-white shadow-lg">
+        <button type="button" onClick={() => setPreferencesOpen(true)} className="self-start underline underline-offset-2 transition hover:text-[var(--ink)] sm:self-end">
           Nastavenie cookies
         </button>
       )}

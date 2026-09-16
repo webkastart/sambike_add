@@ -13,6 +13,7 @@ import {
 import {
   ArrowDown,
   ArrowUp,
+  GripVertical,
   ImageOff,
   ImagePlus,
   Play,
@@ -66,6 +67,7 @@ type EditorItem = CurrentItem | SelectedItem;
 
 type Props = {
   items: GalleryItem[];
+  galleryOnly?: boolean;
 };
 
 export type PreparedGalleryMedia = PreparedCampaignMedia & {
@@ -170,7 +172,7 @@ function MediaPreview({ label, mediaType, src }: { label: string; mediaType: str
   return <img src={src} alt={label} className="absolute inset-0 size-full object-cover" onError={() => setFailedSrc(src)} />;
 }
 
-export const CampaignGalleryField = forwardRef<CampaignGalleryFieldHandle, Props>(function CampaignGalleryField({ items }, ref) {
+export const CampaignGalleryField = forwardRef<CampaignGalleryFieldHandle, Props>(function CampaignGalleryField({ items, galleryOnly = false }, ref) {
   const inputRef = useRef<HTMLInputElement>(null);
   const previewUrlsRef = useRef(new Set<string>());
   const preparedUploadsRef = useRef(new Map<string, PreparedCampaignMedia>());
@@ -178,6 +180,7 @@ export const CampaignGalleryField = forwardRef<CampaignGalleryFieldHandle, Props
   const [removedItems, setRemovedItems] = useState<CurrentItem[]>([]);
   const [selectionMessage, setSelectionMessage] = useState("");
   const [uploadMessage, setUploadMessage] = useState("");
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
   useEffect(() => {
     const previewUrls = previewUrlsRef.current;
@@ -281,6 +284,15 @@ export const CampaignGalleryField = forwardRef<CampaignGalleryFieldHandle, Props
     commitItems(nextItems);
   }
 
+  function dropItem(destination: number) {
+    if (draggedIndex === null || draggedIndex === destination) return setDraggedIndex(null);
+    const nextItems = [...editorItems];
+    const [item] = nextItems.splice(draggedIndex, 1);
+    nextItems.splice(destination, 0, item);
+    commitItems(nextItems);
+    setDraggedIndex(null);
+  }
+
   useImperativeHandle(ref, () => ({
     async prepareUploads() {
       const selectedItems = editorItems
@@ -325,9 +337,9 @@ export const CampaignGalleryField = forwardRef<CampaignGalleryFieldHandle, Props
     <div>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <span className="text-xs font-semibold uppercase tracking-[.12em] text-[#747d76]">Médiá kampane</span>
+          <span className="text-xs font-semibold uppercase tracking-[.12em] text-[#747d76]">{galleryOnly ? "Fotografie a videá v galérii" : "Médiá kampane"}</span>
           <p className="mt-1 max-w-2xl text-xs leading-relaxed text-[#89918b]">
-            Ku každej fotke môžete doplniť popis, určiť jej miesto na stránke, zmeniť poradie alebo ju odstrániť.
+            {galleryOnly ? "Pridajte médiá, upravte ich popis a potiahnutím alebo šípkami zmeňte poradie." : "Ku každej fotke môžete doplniť popis, určiť jej miesto na stránke, zmeniť poradie alebo ju odstrániť."}
           </p>
         </div>
         <span className="text-xs font-medium text-[#747d76]" aria-live="polite">{editorItems.length} / {maxGalleryItems} médií</span>
@@ -344,7 +356,15 @@ export const CampaignGalleryField = forwardRef<CampaignGalleryFieldHandle, Props
               sortOrder: index,
             };
             return (
-              <div key={item.key} className="overflow-hidden rounded-[1.25rem] border border-[var(--line)] bg-white">
+              <div
+                key={item.key}
+                className={`overflow-hidden rounded-[1.25rem] border bg-white ${draggedIndex === index ? "border-[var(--accent)] opacity-70" : "border-[var(--line)]"}`}
+                draggable
+                onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", item.key); setDraggedIndex(index); }}
+                onDragEnd={() => setDraggedIndex(null)}
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={() => dropItem(index)}
+              >
                 {item.kind === "current" ? (
                   <input type="hidden" name="galleryItemData" value={JSON.stringify(itemData)} />
                 ) : (
@@ -373,8 +393,9 @@ export const CampaignGalleryField = forwardRef<CampaignGalleryFieldHandle, Props
                       onChange={(event) => updateItem(item.key, { caption: event.target.value })}
                     />
                   </label>
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
-                    <label>
+                  <div className={`grid items-end gap-3 ${galleryOnly ? "grid-cols-[auto_1fr_auto]" : "grid-cols-[minmax(0,1fr)_auto]"}`}>
+                    {galleryOnly && <span className="inline-flex size-9 cursor-grab items-center justify-center text-[#7a837c]" aria-label="Potiahnutím zmeniť poradie"><GripVertical size={17} /></span>}
+                    {!galleryOnly && <label>
                       <span className="text-xs font-semibold text-[#59635b]">Zobraziť v sekcii</span>
                       <select
                         className="admin-field"
@@ -384,7 +405,8 @@ export const CampaignGalleryField = forwardRef<CampaignGalleryFieldHandle, Props
                       >
                         {placementOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                       </select>
-                    </label>
+                    </label>}
+                    {galleryOnly && <span className="text-xs text-[#89918b]">Poradie {index + 1}</span>}
                     <div className="flex items-center gap-1" aria-label={`Poradie média ${index + 1}`}>
                       <button
                         type="button"
@@ -443,7 +465,7 @@ export const CampaignGalleryField = forwardRef<CampaignGalleryFieldHandle, Props
         )}
       </div>
       <p className="mt-2 text-xs text-[#89918b]">
-        Pre každú špeciálnu sekciu možno vybrať po jednej fotografii · JPG, PNG alebo WebP do {campaignImageSizeLabel}; MP4 do {campaignVideoSizeLabel}.
+        {galleryOnly ? `JPG, PNG alebo WebP do ${campaignImageSizeLabel}; MP4 do ${campaignVideoSizeLabel}.` : `Pre každú špeciálnu sekciu možno vybrať po jednej fotografii · JPG, PNG alebo WebP do ${campaignImageSizeLabel}; MP4 do ${campaignVideoSizeLabel}.`}
       </p>
       {uploadMessage && <p className="mt-2 text-xs font-medium text-[#35623d]" role="status">{uploadMessage}</p>}
       {selectionMessage && <p className="mt-2 text-xs font-medium text-[#9b5b23]" role="status">{selectionMessage}</p>}

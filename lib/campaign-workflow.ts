@@ -136,7 +136,7 @@ export const snapshotFields = [
   "seoTitle", "seoDescription", "canonicalUrl", "ogTitle", "ogDescription", "ogImageUrl", "noIndex", "legalUrl",
 ] as const;
 
-export function publicationSnapshot(campaign: Record<string, unknown> & { galleryItems?: unknown[] }) {
+export function publicationSnapshot(campaign: Record<string, unknown> & { galleryItems?: unknown[]; sections?: unknown[] }) {
   return Object.fromEntries([
     ...snapshotFields.map((field) => [field, campaign[field]]),
     ["galleryItems", (campaign.galleryItems ?? []).map((item) => {
@@ -148,6 +148,10 @@ export function publicationSnapshot(campaign: Record<string, unknown> & { galler
         placement: value.placement,
         sortOrder: value.sortOrder,
       };
+    })],
+    ["sections", (campaign.sections ?? []).map((section) => {
+      const value = section as Record<string, unknown>;
+      return { type: value.type, position: value.position, isVisible: value.isVisible, content: value.content };
     })],
   ]);
 }

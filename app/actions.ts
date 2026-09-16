@@ -24,7 +24,13 @@ import { normalizePhone, parseLeadSubmission } from "@/lib/lead-validation";
 import { consumeRateLimit, requestIp } from "@/lib/rate-limit";
 import { privacyPolicyVersion } from "@/lib/security-config";
 import { verifyTurnstile } from "@/lib/turnstile";
-import type { Prisma } from "@/generated/prisma/client";
+import type { CampaignSectionType, Prisma } from "@/generated/prisma/client";
+import {
+  legacyCampaignSections,
+  parseCampaignSections,
+  sectionContentString,
+  type EditableCampaignSection,
+} from "@/lib/campaign-sections";
 import {
   canTransitionCampaign,
   campaignReadiness,
@@ -319,16 +325,30 @@ export async function createCampaign(formData: FormData) {
   );
 
   try {
-    await prisma.campaign.create({
-      data: {
-        ...data,
-        ...images,
-        status: "DRAFT",
-        galleryItems: {
-          create: galleryItems.map((item, sortOrder) => ({ ...item, sortOrder })),
+    await prisma.$transaction(async (tx) => {
+      const campaign = await tx.campaign.create({
+        data: {
+          ...data,
+          ...images,
+          status: "DRAFT",
+          galleryItems: {
+            create: galleryItems.map((item, sortOrder) => ({ ...item, sortOrder })),
+          },
+          auditEntries: { create: { action: "CREATED", actor } },
         },
-        auditEntries: { create: { action: "CREATED", actor } },
-      },
+        include: { galleryItems: true },
+      });
+      const sections = legacyCampaignSections(campaign);
+      await tx.campaignSection.createMany({ data: sections.map((section) => ({
+        id: section.id,
+        campaignId: campaign.id,
+        type: section.type,
+        position: section.position,
+        isVisible: section.isVisible,
+        content: section.content as Prisma.InputJsonValue,
+      })) });
+      const gallerySection = sections.find((section) => section.type === "GALLERY");
+      if (gallerySection) await tx.campaignGalleryItem.updateMany({ where: { campaignId: campaign.id, placement: "GALLERY" }, data: { sectionId: gallerySection.id } });
     });
   } catch (error) {
     await cleanupUploadedCampaignMedia(
@@ -459,6 +479,178 @@ export async function updateCampaign(id: string, formData: FormData) {
   redirect(`/admin/kampane/${id}?saved=1`);
 }
 
+function sectionItems(section: EditableCampaignSection | undefined) {
+  return section && Array.isArray(section.content.items) ? section.content.items : [];
+}
+
+function legacyDataFromSections(sections: EditableCampaignSection[], campaign: {
+  headline: string;
+  description: string;
+  imageUrl: string;
+  offerImageUrl: string | null;
+  priceText: string;
+  ctaText: string;
+  benefits: Prisma.JsonValue | null;
+  processSteps: Prisma.JsonValue | null;
+  faq: Prisma.JsonValue | null;
+  testimonials: Prisma.JsonValue | null;
+  finalCtaText: string | null;
+}) {
+  const first = (type: EditableCampaignSection["type"]) => sections.find((section) => section.type === type);
+  const hero = first("HERO");
+  const offer = first("OFFER");
+  const benefits = first("BENEFITS");
+  const faq = first("FAQ");
+  const testimonials = first("TESTIMONIALS");
+  const cta = first("CTA");
+  const form = first("FORM");
+  return {
+    headline: hero ? sectionContentString(hero.content, "heading", campaign.headline) : campaign.headline,
+    description: hero ? sectionContentString(hero.content, "description", campaign.description) : campaign.description,
+    imageUrl: hero ? sectionContentString(hero.content, "imageUrl", campaign.imageUrl) : campaign.imageUrl,
+    offerImageUrl: offer ? sectionContentString(offer.content, "imageUrl", campaign.offerImageUrl || campaign.imageUrl) : campaign.offerImageUrl,
+    priceText: offer ? sectionContentString(offer.content, "priceText", campaign.priceText) : campaign.priceText,
+    ctaText: hero ? sectionContentString(hero.content, "ctaLabel", campaign.ctaText) : campaign.ctaText,
+    benefits: benefits ? sectionItems(benefits) as Prisma.InputJsonValue : campaign.benefits ?? undefined,
+    processSteps: hero && Array.isArray(hero.content.steps) ? hero.content.steps as Prisma.InputJsonValue : campaign.processSteps ?? undefined,
+    faq: faq ? sectionItems(faq) as Prisma.InputJsonValue : campaign.faq ?? undefined,
+    testimonials: testimonials ? sectionItems(testimonials) as Prisma.InputJsonValue : campaign.testimonials ?? undefined,
+    finalCtaText: cta ? sectionContentString(cta.content, "heading", campaign.finalCtaText || "") || null : campaign.finalCtaText,
+    formEnabled: Boolean(form?.isVisible),
+    sectionOrder: sections.map((section) => section.id),
+  };
+}
+
+export async function saveCampaignSections(id: string, formData: FormData) {
+  const { actor } = await requireAdmin();
+  const sections = parseCampaignSections(formData.get("campaignSections"));
+  if (!sections || sections.filter((section) => section.type === "HERO").length !== 1) {
+    redirectWithCampaignError(`/admin/kampane/${id}`, "Obsah stránky má neplatnú štruktúru. Obnovte stránku a skúste to znova.");
+  }
+  for (const type of ["GALLERY", "FORM"] as const) {
+    if (sections.filter((section) => section.type === type).length > 1) {
+      redirectWithCampaignError(`/admin/kampane/${id}`, `Sekciu ${type === "GALLERY" ? "Galéria" : "Formulár"} možno pridať iba raz.`);
+    }
+  }
+
+  const currentCampaign = await prisma.campaign.findUniqueOrThrow({
+    where: { id },
+    include: { sections: true, galleryItems: { orderBy: { sortOrder: "asc" } } },
+  });
+  if (currentCampaign.status === "ARCHIVED") redirectWithCampaignError(`/admin/kampane/${id}`, "Archivovanú kampaň najprv obnovte do konceptu.");
+  const existingSectionIds = new Set(currentCampaign.sections.map((section) => section.id));
+  if (sections.some((section) => !existingSectionIds.has(section.id) && !section.id.startsWith("section_") && !section.id.startsWith(`${id}-`))) {
+    redirectWithCampaignError(`/admin/kampane/${id}`, "Jedna zo sekcií nepatrí k tejto kampani.");
+  }
+  const newSectionIds = sections.filter((section) => !existingSectionIds.has(section.id)).map((section) => section.id);
+  if (newSectionIds.length && await prisma.campaignSection.findFirst({ where: { id: { in: newSectionIds } }, select: { id: true } })) {
+    redirectWithCampaignError(`/admin/kampane/${id}`, "Identifikátor novej sekcie sa už používa. Obnovte stránku a skúste to znova.");
+  }
+
+  const galleryEditorPresent = formData.get("galleryEditorPresent") === "1";
+  const currentGalleryItems = currentCampaign.galleryItems.filter((item) => item.placement === "GALLERY");
+  const submittedGalleryItems = new Map(
+    formData.getAll("galleryItemData").map(preparedMedia).flatMap((input) => typeof input.id === "string" ? [[input.id, input] as const] : []),
+  );
+  const requestedGalleryIds = new Set(submittedGalleryItems.keys());
+  const retainedGalleryItems = galleryEditorPresent ? currentGalleryItems.filter((item) => requestedGalleryIds.has(item.id)) : currentGalleryItems;
+  const removedGalleryItems = galleryEditorPresent ? currentGalleryItems.filter((item) => !requestedGalleryIds.has(item.id)) : [];
+  const uploadedMedia = await uploadedCampaignMedia(formData, `/admin/kampane/${id}`, maxGalleryItems - retainedGalleryItems.length);
+
+  const hero = sections.find((section) => section.type === "HERO")!;
+  const offer = sections.find((section) => section.type === "OFFER");
+  if (uploadedMedia.images.imageUrl) hero.content.imageUrl = uploadedMedia.images.imageUrl;
+  if (offer && uploadedMedia.images.offerImageUrl) offer.content.imageUrl = uploadedMedia.images.offerImageUrl;
+  const legacyData = legacyDataFromSections(sections, currentCampaign);
+  const gallerySection = sections.find((section) => section.type === "GALLERY");
+
+  const orderedGalleryItems = galleryEditorPresent ? uniqueGalleryPlacements([
+    ...retainedGalleryItems.map((item, fallbackOrder) => {
+      const input = submittedGalleryItems.get(item.id) ?? {};
+      return {
+        source: "current" as const,
+        id: item.id,
+        mediaType: item.mediaType === "VIDEO" ? "VIDEO" as const : "IMAGE" as const,
+        mediaUrl: item.mediaUrl,
+        caption: galleryCaption(input.caption),
+        placement: "GALLERY" as const,
+        sortOrder: gallerySortOrder(input.sortOrder, fallbackOrder),
+      };
+    }),
+    ...uploadedMedia.galleryItems.map((item) => ({ source: "new" as const, ...item, placement: "GALLERY" as const })),
+  ].sort((a, b) => a.sortOrder - b.sortOrder)) : [];
+
+  try {
+    await prisma.$transaction([
+      prisma.campaign.update({ where: { id }, data: legacyData }),
+      ...sections.map((section, position) => prisma.campaignSection.upsert({
+        where: { id: section.id },
+        create: { id: section.id, campaignId: id, type: section.type, position, isVisible: section.isVisible, content: section.content as Prisma.InputJsonValue },
+        update: { type: section.type, position, isVisible: section.isVisible, content: section.content as Prisma.InputJsonValue },
+      })),
+      ...(galleryEditorPresent ? orderedGalleryItems.flatMap((item, sortOrder) => item.source === "current" ? [prisma.campaignGalleryItem.update({
+        where: { id: item.id }, data: { caption: item.caption || null, placement: "GALLERY", sectionId: gallerySection?.id ?? null, sortOrder },
+      })] : []) : []),
+      ...(galleryEditorPresent ? [prisma.campaignGalleryItem.deleteMany({ where: { id: { in: removedGalleryItems.map((item) => item.id) }, campaignId: id } })] : []),
+      ...(galleryEditorPresent && orderedGalleryItems.some((item) => item.source === "new") ? [prisma.campaignGalleryItem.createMany({
+        data: orderedGalleryItems.flatMap((item, sortOrder) => item.source === "new" ? [{ campaignId: id, sectionId: gallerySection?.id ?? null, mediaType: item.mediaType, mediaUrl: item.mediaUrl, caption: item.caption || null, placement: "GALLERY", sortOrder }] : []),
+      })] : []),
+      prisma.campaignSection.deleteMany({ where: { campaignId: id, id: { notIn: sections.map((section) => section.id) } } }),
+      prisma.campaignAudit.create({ data: { campaignId: id, action: "UPDATED", actor, metadata: { area: "content-sections" } } }),
+    ]);
+  } catch (error) {
+    await cleanupUploadedCampaignMedia([...Object.values(uploadedMedia.images), ...uploadedMedia.galleryItems.map((item) => item.mediaUrl)], "Campaign sections update failed");
+    console.error(`Campaign sections update ${id} failed:`, error);
+    redirectWithCampaignError(`/admin/kampane/${id}`, "Obsah stránky sa nepodarilo uložiť. Skúste to znova.");
+  }
+
+  if (removedGalleryItems.length > 0) {
+    try { await removeCampaignMediaIfUnreferenced(removedGalleryItems.map((item) => item.mediaUrl)); }
+    catch (error) { console.error(`Odstránené médiá kampane ${id} sa nepodarilo vyčistiť:`, error); }
+  }
+  revalidatePath(`/admin/kampane/${id}`);
+  revalidatePath(`/kampan/${currentCampaign.slug}`);
+  redirect(`/admin/kampane/${id}?saved=content`);
+}
+
+export async function updateCampaignSettings(id: string, formData: FormData) {
+  const { actor } = await requireAdmin();
+  const current = await prisma.campaign.findUniqueOrThrow({ where: { id }, include: { metaAd: true } });
+  if (current.status === "ARCHIVED") redirectWithCampaignError(`/admin/kampane/${id}`, "Archivovanú kampaň najprv obnovte do konceptu.");
+  const name = text(formData, "name").slice(0, 120);
+  const slug = slugify(text(formData, "slug") || name);
+  const phone = text(formData, "phone").slice(0, 30);
+  const email = text(formData, "email").slice(0, 254);
+  if (!name || !slug || !/[0-9]{7,}/.test(phone.replace(/\s/g, "")) || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    redirectWithCampaignError(`/admin/kampane/${id}`, "Skontrolujte názov, adresu stránky, telefón a e-mail.");
+  }
+  if (current.metaAd?.metaCampaignId && slug !== current.slug) redirectWithCampaignError(`/admin/kampane/${id}`, "Adresu stránky nie je možné zmeniť, kým je na ňu napojená Meta reklama.");
+  if (await prisma.campaign.findFirst({ where: { slug, NOT: { id } }, select: { id: true } })) redirectWithCampaignError(`/admin/kampane/${id}`, "Táto adresa stránky sa už používa.");
+  await prisma.$transaction([
+    prisma.campaign.update({ where: { id }, data: {
+      name, slug, phone, email,
+      responseTimeText: text(formData, "responseTimeText").slice(0, 200) || null,
+      trustText: text(formData, "trustText").slice(0, 500) || null,
+      openingHours: text(formData, "openingHours").slice(0, 300) || null,
+      address: text(formData, "address").slice(0, 300) || null,
+      mapUrl: text(formData, "mapUrl").slice(0, 1000) || null,
+      seoTitle: text(formData, "seoTitle").slice(0, 70) || null,
+      seoDescription: text(formData, "seoDescription").slice(0, 180) || null,
+      canonicalUrl: text(formData, "canonicalUrl").slice(0, 1000) || null,
+      ogTitle: text(formData, "ogTitle").slice(0, 100) || null,
+      ogDescription: text(formData, "ogDescription").slice(0, 300) || null,
+      ogImageUrl: text(formData, "ogImageUrl").slice(0, 1000) || null,
+      noIndex: formData.get("noIndex") === "on",
+      legalUrl: text(formData, "legalUrl").slice(0, 1000) || "/ochrana-osobnych-udajov",
+    } }),
+    prisma.campaignAudit.create({ data: { campaignId: id, action: "UPDATED", actor, metadata: { area: "settings" } } }),
+  ]);
+  revalidatePath("/admin");
+  revalidatePath(`/kampan/${current.slug}`);
+  revalidatePath(`/kampan/${slug}`);
+  redirect(`/admin/kampane/${id}?saved=settings`);
+}
+
 async function pauseConnectedMetaAd(campaign: {
   metaAd: null | { id: string; metaCampaignId: string | null; metaAdSetId: string | null; metaAdId: string | null; status: string };
 }) {
@@ -471,7 +663,7 @@ async function pauseConnectedMetaAd(campaign: {
 async function readinessForCampaign(id: string) {
   const campaign = await prisma.campaign.findUniqueOrThrow({
     where: { id },
-    include: { galleryItems: { orderBy: { sortOrder: "asc" } }, metaAd: true },
+    include: { galleryItems: { orderBy: { sortOrder: "asc" } }, sections: { orderBy: { position: "asc" } }, metaAd: true },
   });
   const duplicateSlug = await prisma.campaign.count({ where: { slug: campaign.slug, NOT: { id } } });
   return {
@@ -564,15 +756,22 @@ async function uniqueDuplicateSlug(slug: string) {
 
 export async function duplicateCampaign(id: string) {
   const { actor } = await requireAdmin();
-  const source = await prisma.campaign.findUniqueOrThrow({ where: { id }, include: { galleryItems: { orderBy: { sortOrder: "asc" } } } });
+  const source = await prisma.campaign.findUniqueOrThrow({ where: { id }, include: { galleryItems: { orderBy: { sortOrder: "asc" } }, sections: { orderBy: { position: "asc" } } } });
   const slug = await uniqueDuplicateSlug(source.slug);
-  const copy = await prisma.campaign.create({
-    data: {
+  const copy = await prisma.$transaction(async (tx) => {
+    const created = await tx.campaign.create({ data: {
       ...Object.fromEntries(snapshotFields.map((field) => [field, source[field]])),
       name: `${source.name} – kópia`.slice(0, 120), slug, status: "DRAFT", publishedAt: null, publishAt: null, unpublishAt: null, scheduleError: null,
-      galleryItems: { create: source.galleryItems.map(({ mediaUrl, mediaType, caption, placement, sortOrder }) => ({ mediaUrl, mediaType, caption, placement, sortOrder })) },
       auditEntries: { create: { action: "DUPLICATED", actor, metadata: { sourceCampaignId: source.id } } },
-    } as Prisma.CampaignCreateInput,
+    } as Prisma.CampaignCreateInput });
+    const sourceSections = source.sections.length ? source.sections : legacyCampaignSections(source);
+    const sectionIdMap = new Map<string, string>();
+    for (const section of sourceSections) {
+      const createdSection = await tx.campaignSection.create({ data: { campaignId: created.id, type: section.type, position: section.position, isVisible: section.isVisible, content: section.content as Prisma.InputJsonValue } });
+      sectionIdMap.set(section.id, createdSection.id);
+    }
+    if (source.galleryItems.length) await tx.campaignGalleryItem.createMany({ data: source.galleryItems.map(({ mediaUrl, mediaType, caption, placement, sortOrder, sectionId }) => ({ campaignId: created.id, mediaUrl, mediaType, caption, placement, sortOrder, sectionId: sectionId ? sectionIdMap.get(sectionId) ?? null : null })) });
+    return created;
   });
   revalidatePath("/admin");
   redirect(`/admin/kampane/${copy.id}?duplicated=1`);
@@ -586,10 +785,24 @@ export async function restoreCampaignVersion(id: string, publicationId: string) 
   }
   const snapshot = publication.snapshot as Record<string, unknown>;
   const gallery = Array.isArray(snapshot.galleryItems) ? snapshot.galleryItems : [];
+  const savedSections = Array.isArray(snapshot.sections) ? snapshot.sections : [];
   const data = Object.fromEntries(snapshotFields.filter((field) => field !== "slug").map((field) => [field, snapshot[field]])) as Prisma.CampaignUpdateInput;
   await prisma.$transaction(async (tx) => {
     await tx.campaign.update({ where: { id }, data: { ...data, status: "DRAFT", publishedAt: null, publishAt: null, unpublishAt: null } });
     await tx.campaignGalleryItem.deleteMany({ where: { campaignId: id } });
+    let gallerySectionId: string | null = null;
+    if (savedSections.length > 0) {
+      await tx.campaignSection.deleteMany({ where: { campaignId: id } });
+      for (const [position, item] of savedSections.entries()) {
+        if (!item || typeof item !== "object") continue;
+        const value = item as Record<string, unknown>;
+        if (typeof value.type !== "string" || !["HERO", "TEXT_IMAGE", "BENEFITS", "OFFER", "GALLERY", "VIDEO", "FAQ", "TESTIMONIALS", "CTA", "FORM"].includes(value.type)) continue;
+        const section = await tx.campaignSection.create({ data: { campaignId: id, type: value.type as CampaignSectionType, position, isVisible: value.isVisible !== false, content: value.content as Prisma.InputJsonValue } });
+        if (value.type === "GALLERY" && !gallerySectionId) gallerySectionId = section.id;
+      }
+    } else {
+      gallerySectionId = (await tx.campaignSection.findFirst({ where: { campaignId: id, type: "GALLERY" }, select: { id: true } }))?.id ?? null;
+    }
     await tx.campaignGalleryItem.createMany({ data: gallery.flatMap((item, index) => {
       if (!item || typeof item !== "object") return [];
       const value = item as Record<string, unknown>;
@@ -597,6 +810,7 @@ export async function restoreCampaignVersion(id: string, publicationId: string) 
       const mediaType = value.mediaType;
       return [{
         campaignId: id,
+        sectionId: galleryPlacement(value.placement, mediaType) === "GALLERY" ? gallerySectionId : null,
         mediaUrl: value.mediaUrl,
         mediaType,
         caption: galleryCaption(value.caption) || null,
@@ -632,8 +846,17 @@ export async function applyExperimentVariant(id: string) {
   const { actor } = await requireAdmin();
   const experiment = await prisma.campaignExperiment.findUniqueOrThrow({ where: { campaignId: id } });
   if (experiment.status !== "COMPLETED") redirectWithCampaignError(`/admin/kampane/${id}`, "Variant možno použiť až po ukončení experimentu.");
+  const heroSection = await prisma.campaignSection.findFirst({ where: { campaignId: id, type: "HERO" }, orderBy: { position: "asc" } });
+  const heroContent = heroSection?.content && typeof heroSection.content === "object" && !Array.isArray(heroSection.content) ? heroSection.content as Record<string, unknown> : {};
   await prisma.$transaction([
     prisma.campaign.update({ where: { id }, data: { status: "DRAFT", publishedAt: null, headline: experiment.variantHeadline ?? undefined, description: experiment.variantDescription ?? undefined, ctaText: experiment.variantCtaText ?? undefined, imageUrl: experiment.variantImageUrl ?? undefined } }),
+    ...(heroSection ? [prisma.campaignSection.update({ where: { id: heroSection.id }, data: { content: {
+      ...heroContent,
+      heading: experiment.variantHeadline ?? heroContent.heading,
+      description: experiment.variantDescription ?? heroContent.description,
+      ctaLabel: experiment.variantCtaText ?? heroContent.ctaLabel,
+      imageUrl: experiment.variantImageUrl ?? heroContent.imageUrl,
+    } as Prisma.InputJsonValue } })] : []),
     prisma.campaignAudit.create({ data: { campaignId: id, action: "EXPERIMENT_CHANGED", actor, metadata: { appliedVariant: "B", restoredToDraft: true } } }),
   ]);
   revalidatePath("/admin");

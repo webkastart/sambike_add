@@ -11,7 +11,7 @@ function safeError(error: unknown) {
 
 export async function runCampaignSchedule(now = new Date()) {
   const [publishDue, unpublishDue] = await Promise.all([
-    prisma.campaign.findMany({ where: { status: { in: ["DRAFT", "READY", "PAUSED"] }, publishAt: { lte: now } }, include: { galleryItems: { orderBy: { sortOrder: "asc" } }, metaAd: true } }),
+    prisma.campaign.findMany({ where: { status: { in: ["DRAFT", "READY", "PAUSED"] }, publishAt: { lte: now } }, include: { galleryItems: { orderBy: { sortOrder: "asc" } }, sections: { orderBy: { position: "asc" } }, metaAd: true } }),
     prisma.campaign.findMany({ where: { status: "PUBLISHED", unpublishAt: { lte: now } }, include: { metaAd: true } }),
   ]);
   const results: Array<{ id: string; operation: "publish" | "unpublish"; ok: boolean }> = [];

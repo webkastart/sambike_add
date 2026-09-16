@@ -63,6 +63,19 @@ enum CampaignExperimentStatus {
   COMPLETED
 }
 
+enum CampaignSectionType {
+  HERO
+  TEXT_IMAGE
+  BENEFITS
+  OFFER
+  GALLERY
+  VIDEO
+  FAQ
+  TESTIMONIALS
+  CTA
+  FORM
+}
+
 enum CampaignAuditAction {
   CREATED
   UPDATED
@@ -131,10 +144,27 @@ model Campaign {
   publications     CampaignPublication[]
   auditEntries     CampaignAudit[]
   experiment       CampaignExperiment?
+  sections         CampaignSection[]
 
   @@index([status])
   @@index([status, publishAt])
   @@index([status, unpublishAt])
+}
+
+model CampaignSection {
+  id         String              @id @default(cuid())
+  campaignId String
+  type       CampaignSectionType
+  position   Int
+  isVisible  Boolean             @default(true)
+  content    Json
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+  campaign   Campaign            @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  mediaItems CampaignGalleryItem[]
+
+  @@index([campaignId, position])
+  @@index([campaignId, type])
 }
 
 model CampaignPublication {
@@ -183,6 +213,7 @@ model CampaignExperiment {
 model CampaignGalleryItem {
   id         String   @id @default(cuid())
   campaignId String
+  sectionId  String?
   mediaUrl   String   @map("imageUrl")
   mediaType  String   @default("IMAGE")
   caption    String?
@@ -190,9 +221,11 @@ model CampaignGalleryItem {
   sortOrder  Int
   createdAt  DateTime @default(now())
   campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  section    CampaignSection? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
 
   @@index([campaignId, sortOrder])
   @@index([campaignId, placement, sortOrder])
+  @@index([sectionId, sortOrder])
   @@map("CampaignGalleryImage")
 }
 

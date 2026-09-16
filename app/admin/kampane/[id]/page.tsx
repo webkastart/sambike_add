@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ArrowUpRight } from "lucide-react";
-import { applyExperimentVariant, changeCampaignStatus, duplicateCampaign, publishCampaign, restoreCampaignVersion, saveCampaignExperiment, scheduleCampaign, updateCampaign } from "@/app/actions";
+import { applyExperimentVariant, changeCampaignStatus, duplicateCampaign, publishCampaign, restoreCampaignVersion, saveCampaignExperiment, saveCampaignSections, scheduleCampaign, updateCampaignSettings } from "@/app/actions";
 import { CampaignActions } from "@/components/campaign-actions";
-import { CampaignForm } from "@/components/campaign-form";
+import { CampaignContentEditor } from "@/components/campaign-content-editor";
+import { CampaignSettingsForm } from "@/components/campaign-settings-form";
 import { MetaAdSection } from "@/components/meta-ad-section";
 import { prisma } from "@/lib/prisma";
 import { getMetaConnectionSummary } from "@/lib/meta-ads";
@@ -13,6 +14,7 @@ import { attributionSource } from "@/lib/crm";
 import { formatDate } from "@/lib/format";
 import { safeRate } from "@/lib/performance";
 import { campaignReadiness, changedSnapshotFields, createCampaignPreviewToken, publicationSnapshot, variantConversion } from "@/lib/campaign-workflow";
+import { resolveCampaignSections } from "@/lib/campaign-sections";
 
 export const dynamic = "force-dynamic";
 
@@ -53,6 +55,7 @@ export default async function EditCampaignPage({
     include: {
       metaAd: true,
       galleryItems: { orderBy: { sortOrder: "asc" } },
+      sections: { orderBy: { position: "asc" } },
       _count: { select: { leads: true } },
       publications: { orderBy: { version: "desc" }, take: 10 },
       auditEntries: { orderBy: { createdAt: "desc" }, take: 20 },
@@ -75,7 +78,8 @@ export default async function EditCampaignPage({
   const leadCount = periodLeadCount;
   const completedCount = revenue._count._all;
   const metaStale = campaign.metaAd?.lastSyncedAt ? campaign.metaAd.lastSyncedAt < new Date(period.end.getTime() - 36 * 60 * 60 * 1000) : Boolean(campaign.metaAd);
-  const updateAction = updateCampaign.bind(null, campaign.id);
+  const saveSectionsAction = saveCampaignSections.bind(null, campaign.id);
+  const updateSettingsAction = updateCampaignSettings.bind(null, campaign.id);
   const publishAction = publishCampaign.bind(null, campaign.id);
   const readyAction = changeCampaignStatus.bind(null, campaign.id, "READY");
   const pauseCampaignAction = changeCampaignStatus.bind(null, campaign.id, "PAUSED");
@@ -113,6 +117,7 @@ export default async function EditCampaignPage({
   const variantA = variantMetric("A");
   const variantB = variantMetric("B");
   const currentSnapshot = publicationSnapshot(campaign);
+  const editableSections = resolveCampaignSections(campaign);
 
   return (
     <>
@@ -129,7 +134,7 @@ export default async function EditCampaignPage({
           {query.error}
         </p>
       )}
-      {query.saved && <p className="mt-7 text-sm font-medium text-[#4e6a37]">Zmeny boli uložené.</p>}
+      {query.saved && <p className="mt-7 text-sm font-medium text-[#4e6a37]">{query.saved === "content" ? "Obsah stránky bol uložený." : query.saved === "settings" ? "Nastavenia kampane boli uložené." : "Zmeny boli uložené."}</p>}
       {query.published && <p className="mt-7 text-sm font-medium text-[#4e6a37]">Landing page bola publikovaná a vznikol nemenný snapshot.</p>}
       {query.scheduled && <p className="mt-7 text-sm font-medium text-[#4e6a37]">Plán bol uložený v časovom pásme Europe/Bratislava.</p>}
       <CampaignActions status={campaign.status} previewHref={previewHref} publishAction={publishAction} readyAction={readyAction} pauseAction={pauseCampaignAction} archiveAction={archiveAction} restoreDraftAction={restoreDraftAction} duplicateAction={duplicateAction} />
@@ -144,7 +149,7 @@ export default async function EditCampaignPage({
         ].map(([label, value]) => <div key={label}><p className="text-xl font-semibold">{value}</p><p className="mt-1 text-xs text-[#737c75]">{label}</p></div>)}</div>
         <div className="mt-8 grid gap-8 lg:grid-cols-3"><div><h3 className="text-sm font-semibold">Zdroje leadov</h3><ul className="mt-3 space-y-2 text-sm">{sources.map((source) => <li key={source.utmSource ?? "direct"} className="flex justify-between"><span>{source.utmSource || "Direct / neznámy"}</span><strong>{source._count._all}</strong></li>)}{sources.length === 0 && <li className="text-[#788179]">Bez dát</li>}</ul></div><div><h3 className="text-sm font-semibold">Posledné leady</h3><ul className="mt-3 space-y-2 text-sm">{recentLeads.map((lead) => <li key={lead.id}><Link className="flex justify-between gap-4 hover:underline" href={`/admin/leady/${lead.id}`}><span>{lead.name} · {attributionSource(lead)}</span><span className="text-xs text-[#8a928c]">{formatDate(lead.createdAt)}</span></Link></li>)}{recentLeads.length === 0 && <li className="text-[#788179]">Bez leadov</li>}</ul></div><div><h3 className="text-sm font-semibold">Meta výsledky</h3>{metaPeriod && metaPeriod._count._all > 0 ? <dl className="mt-3 grid grid-cols-2 gap-3 text-sm"><div><dt className="text-xs text-[#8a928c]">Spend</dt><dd>{((metaPeriod._sum.spendCents ?? 0) / 100).toFixed(2)} €</dd></div><div><dt className="text-xs text-[#8a928c]">Impressions</dt><dd>{metaPeriod._sum.impressions ?? 0}</dd></div><div><dt className="text-xs text-[#8a928c]">Kliknutia</dt><dd>{metaPeriod._sum.clicks ?? 0}</dd></div><div><dt className="text-xs text-[#8a928c]">Meta leady</dt><dd>{metaPeriod._sum.metaLeads ?? 0}</dd></div></dl> : <p className="mt-3 text-sm text-[#788179]">— Denné Meta dáta pre obdobie nie sú k dispozícii.</p>}{campaign.metaAd && <p className={`mt-4 text-xs ${metaStale ? "font-semibold text-[#9a6b25]" : "text-[#737c75]"}`}>{campaign.metaAd.lastSyncedAt ? `Posledná synchronizácia ${formatDate(campaign.metaAd.lastSyncedAt)}${metaStale ? " · dáta môžu byť zastarané" : ""}` : "Meta dáta ešte neboli synchronizované."}</p>}</div></div>
       </section>
-      {campaign.status !== "ARCHIVED" ? <CampaignForm campaign={campaign} action={updateAction} submitLabel="Uložiť zmeny" /> : <p className="mt-10 border-y border-[var(--line)] py-6 text-sm text-[#737c75]">Archivovaná kampaň je iba na čítanie. Leady, metriky, audit a publikované verzie zostávajú dostupné.</p>}
+      {campaign.status !== "ARCHIVED" ? <><CampaignContentEditor sections={editableSections} galleryItems={campaign.galleryItems} action={saveSectionsAction} previewHref={previewHref} /><CampaignSettingsForm campaign={campaign} action={updateSettingsAction} /></> : <p className="mt-10 border-y border-[var(--line)] py-6 text-sm text-[#737c75]">Archivovaná kampaň je iba na čítanie. Leady, metriky, audit a publikované verzie zostávajú dostupné.</p>}
 
       <section className="mt-16 border-t border-[var(--line)] pt-10" aria-labelledby="schedule-title"><p className="text-xs font-semibold uppercase tracking-[.14em] text-[#8a938c]">Europe/Bratislava</p><h2 id="schedule-title" className="mt-1 text-xl font-semibold">Plánované publikovanie a ukončenie</h2><form action={scheduleAction} className="mt-6 grid max-w-2xl gap-6 sm:grid-cols-2"><label><span className="text-xs font-semibold uppercase tracking-[.12em] text-[#747d76]">Publikovať</span><input className="admin-field" type="datetime-local" name="publishAt" defaultValue={bratislavaInput(campaign.publishAt)} /></label><label><span className="text-xs font-semibold uppercase tracking-[.12em] text-[#747d76]">Ukončiť / pozastaviť</span><input className="admin-field" type="datetime-local" name="unpublishAt" defaultValue={bratislavaInput(campaign.unpublishAt)} /></label><div className="sm:col-span-2"><button className="text-sm font-semibold text-[var(--accent-dark)]" type="submit">Uložiť plán →</button>{campaign.scheduleError && <p className="mt-3 text-sm text-[#a1433e]">Posledná chyba: {campaign.scheduleError}</p>}</div></form></section>
 
