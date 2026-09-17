@@ -43,7 +43,8 @@ export const CampaignImageField = forwardRef<CampaignImageFieldHandle, Props>(fu
   const [failedImageUrl, setFailedImageUrl] = useState("");
   const [selectionMessage, setSelectionMessage] = useState("");
   const [uploadMessage, setUploadMessage] = useState("");
-  const displayedImage = previewUrl ?? currentImageUrl;
+  const [urlValue, setUrlValue] = useState(currentImageUrl ?? "");
+  const displayedImage = previewUrl ?? urlValue;
   const imageFailed = Boolean(displayedImage && failedImageUrl === displayedImage);
 
   useEffect(() => {
@@ -171,7 +172,8 @@ export const CampaignImageField = forwardRef<CampaignImageFieldHandle, Props>(fu
           className="admin-field"
           name={urlName}
           type="text"
-          defaultValue={currentImageUrl ?? ""}
+          value={urlValue}
+          onChange={(event) => setUrlValue(event.target.value)}
           placeholder="https://…"
         />
       </label>

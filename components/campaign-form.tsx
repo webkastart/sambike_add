@@ -13,6 +13,7 @@ import {
   CampaignImageField,
   type CampaignImageFieldHandle,
 } from "@/components/campaign-image-field";
+import { CampaignJsonAssistant } from "@/components/campaign-json-assistant";
 
 type Props = {
   campaign?: Campaign & { galleryItems?: CampaignGalleryItem[] };
@@ -144,6 +145,7 @@ export function CampaignForm({ campaign, action, submitLabel, template = "servic
   return (
     <form action={submitCampaign} className="mt-10 max-w-4xl">
       {!campaign && <label className="mb-9 block max-w-sm"><span className="text-xs font-semibold uppercase tracking-[.12em] text-[#747d76]">Šablóna</span><select className="admin-field" value={template} onChange={(event) => router.push(`/admin/kampane/nova?sablona=${event.target.value}`)}><option value="service">Servis bicyklov</option><option value="rental">Požičovňa / e-bike</option><option value="seasonal">Sezónna ponuka</option></select><span className="mt-2 block text-xs text-[#89918b]">Šablóna iba predvyplní koncept. Pred publikovaním upravte skutočné údaje.</span></label>}
+      {!campaign && <CampaignJsonAssistant />}
       <div className="grid gap-x-12 gap-y-7 md:grid-cols-2">
         {fields.map((field) => (
           <label key={field.name} className={field.wide ? "md:col-span-2" : ""}>
