@@ -30,17 +30,52 @@ button, a { -webkit-tap-highlight-color: transparent; }
 
 .admin-field {
   width: 100%;
-  border: 0;
-  border-bottom: 1px solid #d6ddd7;
-  background: transparent;
-  padding: .7rem 0;
+  min-height: 2.75rem;
+  border: 1px solid #d9dedb;
+  border-radius: .65rem;
+  background-color: #fff;
+  padding: .7rem .8rem;
   color: var(--ink);
   outline: none;
-  transition: border-color .18s ease;
+  box-shadow: 0 1px 1px rgba(34, 31, 31, .025);
+  transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease;
 }
 
-.admin-field:focus { border-color: var(--ink); }
+.admin-field:hover { border-color: #bcc5be; }
+.admin-field:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(9, 113, 206, .12);
+}
+.admin-field:disabled {
+  cursor: not-allowed;
+  background-color: #f1f3f1;
+  color: #808981;
+}
 .admin-field::placeholder { color: #a6aea7; }
+.admin-field.admin-field-with-leading-icon { padding-left: 2.5rem; }
+.admin-field.admin-field-with-trailing-unit { padding-right: 2.5rem; }
+select.admin-field {
+  appearance: none;
+  cursor: pointer;
+  padding-right: 2.5rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20' fill='none' stroke='%23667168' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 8 4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right .7rem center;
+  background-size: 1.15rem;
+}
+select.admin-field[multiple] {
+  min-height: 8rem;
+  padding-right: .8rem;
+  background-image: none;
+}
+input.admin-field[type="date"],
+input.admin-field[type="datetime-local"] {
+  color-scheme: light;
+}
+input.admin-field::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: .55;
+}
 textarea.admin-field { min-height: 7rem; resize: vertical; }
 
 .landing-field {

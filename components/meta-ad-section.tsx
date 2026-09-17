@@ -153,7 +153,7 @@ export function MetaAdSection({
             </div>
             <label>
               <span className="text-xs font-semibold uppercase tracking-[.12em] text-[#747d76]">Denný rozpočet</span>
-              <div className="relative"><input className="admin-field pr-8" name="dailyBudget" type="number" min="5" max={connection.maxCampaignDailyBudgetCents / 100} step="1" defaultValue={ad ? ad.dailyBudgetCents / 100 : 10} required /><span className="absolute bottom-3 right-0 text-sm text-[#879088]">€</span></div><span className="mt-1 block text-xs text-[#8a928c]">Maximum {(connection.maxCampaignDailyBudgetCents / 100).toFixed(2)} €. Vyšší nezvyčajný rozpočet aplikácia odmietne.</span>
+              <div className="relative"><input className="admin-field admin-field-with-trailing-unit" name="dailyBudget" type="number" min="5" max={connection.maxCampaignDailyBudgetCents / 100} step="1" defaultValue={ad ? ad.dailyBudgetCents / 100 : 10} required /><span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[#879088]" aria-hidden="true">€</span></div><span className="mt-1 block text-xs text-[#8a928c]">Maximum {(connection.maxCampaignDailyBudgetCents / 100).toFixed(2)} €. Vyšší nezvyčajný rozpočet aplikácia odmietne.</span>
             </label>
             <label>
               <span className="text-xs font-semibold uppercase tracking-[.12em] text-[#747d76]">Okruh od Spišskej Novej Vsi</span>

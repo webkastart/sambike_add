@@ -31,7 +31,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
     </nav>
 
     <form className="mt-7 grid gap-3 border-b border-[var(--line)] pb-5 md:grid-cols-4" method="get">
-      <label className="relative md:col-span-2"><Search className="absolute left-0 top-3 text-[#8a928c]" size={15} /><span className="sr-only">Hľadať</span><input className="admin-field pl-6" name="q" defaultValue={params.q} placeholder="Meno, telefón alebo e-mail" /></label>
+      <label className="relative md:col-span-2"><Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#8a928c]" size={16} aria-hidden="true" /><span className="sr-only">Hľadať</span><input className="admin-field admin-field-with-leading-icon" name="q" defaultValue={params.q} placeholder="Meno, telefón alebo e-mail" /></label>
       <label><span className="sr-only">Kampaň</span><select className="admin-field" name="kampan" defaultValue={params.kampan ?? ""}><option value="">Všetky kampane</option>{campaigns.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}</select></label>
       <label><span className="sr-only">Stav</span><select className="admin-field" name="stav" defaultValue={params.stav ?? ""}><option value="">Všetky stavy</option>{leadStatuses.map((status) => <option key={status} value={status}>{leadStatusLabels[status]}</option>)}</select></label>
       <label><span className="sr-only">Zdroj alebo UTM</span><input className="admin-field" name="zdroj" defaultValue={params.zdroj} placeholder="Zdroj / UTM" /></label>
