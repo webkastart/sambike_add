@@ -4,6 +4,7 @@
 
 import {
   forwardRef,
+  type ClipboardEvent,
   type SyntheticEvent,
   useEffect,
   useImperativeHandle,
@@ -13,6 +14,7 @@ import {
 import {
   ArrowDown,
   ArrowUp,
+  ClipboardPaste,
   GripVertical,
   ImageOff,
   ImagePlus,
@@ -24,6 +26,8 @@ import {
   type PreparedCampaignMedia,
   uploadCampaignMedia,
 } from "@/lib/campaign-media-client";
+import { CampaignMediaLibraryPicker } from "@/components/campaign-media-library-picker";
+import type { CampaignMediaLibraryItem } from "@/lib/campaign-media-library-types";
 import {
   campaignImageSizeLabel,
   campaignVideoSizeLabel,
@@ -63,11 +67,22 @@ type SelectedItem = {
   placement: MediaPlacement;
 };
 
-type EditorItem = CurrentItem | SelectedItem;
+type LibraryItem = {
+  kind: "library";
+  key: string;
+  mediaType: MediaType;
+  mediaUrl: string;
+  caption: string;
+  placement: MediaPlacement;
+};
+
+type EditorItem = CurrentItem | SelectedItem | LibraryItem;
 
 type Props = {
   items: GalleryItem[];
   galleryOnly?: boolean;
+  currentCampaignId?: string;
+  mediaLibrary?: CampaignMediaLibraryItem[];
 };
 
 export type PreparedGalleryMedia = PreparedCampaignMedia & {
@@ -81,6 +96,7 @@ export type CampaignGalleryFieldHandle = {
 };
 
 const maxGalleryItems = 20;
+const allowedImageTypes = ["image/jpeg", "image/png", "image/webp"];
 
 const placementOptions: Array<{ value: MediaPlacement; label: string }> = [
   { value: "GALLERY", label: "Galéria" },
@@ -111,13 +127,13 @@ function fileKey(file: File) {
 }
 
 function fileMediaType(file: File): MediaType | null {
-  if (["image/jpeg", "image/png", "image/webp"].includes(file.type) && file.size <= maxCampaignImageSize) return "IMAGE";
+  if (allowedImageTypes.includes(file.type) && file.size <= maxCampaignImageSize) return "IMAGE";
   if (file.type === "video/mp4" && file.size <= maxCampaignVideoSize) return "VIDEO";
   return null;
 }
 
 function fileRejection(file: File) {
-  if (["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+  if (allowedImageTypes.includes(file.type)) {
     return file.size > maxCampaignImageSize ? `${file.name}: obrázok môže mať najviac ${campaignImageSizeLabel}.` : "";
   }
   if (file.type === "video/mp4") {
@@ -172,7 +188,7 @@ function MediaPreview({ label, mediaType, src }: { label: string; mediaType: str
   return <img src={src} alt={label} className="absolute inset-0 size-full object-cover" onError={() => setFailedSrc(src)} />;
 }
 
-export const CampaignGalleryField = forwardRef<CampaignGalleryFieldHandle, Props>(function CampaignGalleryField({ items, galleryOnly = false }, ref) {
+export const CampaignGalleryField = forwardRef<CampaignGalleryFieldHandle, Props>(function CampaignGalleryField({ items, galleryOnly = false, currentCampaignId, mediaLibrary = [] }, ref) {
   const inputRef = useRef<HTMLInputElement>(null);
   const previewUrlsRef = useRef(new Set<string>());
   const preparedUploadsRef = useRef(new Map<string, PreparedCampaignMedia>());
@@ -201,7 +217,7 @@ export const CampaignGalleryField = forwardRef<CampaignGalleryFieldHandle, Props
     syncInputFiles(nextItems);
   }
 
-  function addItems(files: FileList | null) {
+  function addItems(files: FileList | readonly File[] | null) {
     if (!files) return;
     const selectedKeys = new Set(editorItems.filter((item): item is SelectedItem => item.kind === "selected").map(({ key }) => key));
     const availablePlaces = Math.max(0, maxGalleryItems - editorItems.length);
@@ -238,12 +254,41 @@ export const CampaignGalleryField = forwardRef<CampaignGalleryFieldHandle, Props
     commitItems([...editorItems, ...additions]);
   }
 
+  function addLibraryItems(itemsToAdd: CampaignMediaLibraryItem[]) {
+    const existingUrls = new Set(editorItems.flatMap((item) => item.kind === "selected" ? [] : [item.mediaUrl]));
+    const availablePlaces = Math.max(0, maxGalleryItems - editorItems.length);
+    const additions = itemsToAdd
+      .filter((item) => !existingUrls.has(item.mediaUrl))
+      .slice(0, availablePlaces)
+      .map<LibraryItem>((item) => ({
+        kind: "library",
+        key: `library-${item.mediaUrl}`,
+        mediaType: item.mediaType,
+        mediaUrl: item.mediaUrl,
+        caption: item.label ?? "",
+        placement: "GALLERY",
+      }));
+    commitItems([...editorItems, ...additions]);
+    setSelectionMessage(additions.length > 0 ? `${additions.length === 1 ? "Médium bolo pridané" : "Médiá boli pridané"} z knižnice.` : "Vybrané médiá už sú v kampani.");
+  }
+
+  function pasteImages(event: ClipboardEvent<HTMLDivElement>) {
+    const files = Array.from(event.clipboardData.items)
+      .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => file !== null);
+
+    if (files.length === 0) return;
+    event.preventDefault();
+    addItems(files);
+  }
+
   function removeItem(item: EditorItem) {
     if (item.kind === "selected") {
       URL.revokeObjectURL(item.previewUrl);
       previewUrlsRef.current.delete(item.previewUrl);
       preparedUploadsRef.current.delete(item.key);
-    } else {
+    } else if (item.kind === "current") {
       setRemovedItems((removed) => [...removed, item]);
     }
     commitItems(editorItems.filter(({ key }) => key !== item.key));
@@ -334,7 +379,7 @@ export const CampaignGalleryField = forwardRef<CampaignGalleryFieldHandle, Props
   }), [editorItems]);
 
   return (
-    <div>
+    <div onPaste={pasteImages}>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <span className="text-xs font-semibold uppercase tracking-[.12em] text-[#747d76]">{galleryOnly ? "Fotografie a videá v galérii" : "Médiá kampane"}</span>
@@ -348,7 +393,7 @@ export const CampaignGalleryField = forwardRef<CampaignGalleryFieldHandle, Props
       {editorItems.length > 0 ? (
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
           {editorItems.map((item, index) => {
-            const src = item.kind === "current" ? item.mediaUrl : item.previewUrl;
+            const src = item.kind === "selected" ? item.previewUrl : item.mediaUrl;
             const itemData = {
               ...(item.kind === "current" ? { id: item.id } : { key: item.key }),
               caption: item.caption,
@@ -367,6 +412,8 @@ export const CampaignGalleryField = forwardRef<CampaignGalleryFieldHandle, Props
               >
                 {item.kind === "current" ? (
                   <input type="hidden" name="galleryItemData" value={JSON.stringify(itemData)} />
+                ) : item.kind === "library" ? (
+                  <input type="hidden" name="galleryLibraryMedia" value={JSON.stringify({ ...itemData, mediaType: item.mediaType, mediaUrl: item.mediaUrl })} />
                 ) : (
                   <input type="hidden" name="galleryNewItemData" value={JSON.stringify(itemData)} />
                 )}
@@ -377,7 +424,7 @@ export const CampaignGalleryField = forwardRef<CampaignGalleryFieldHandle, Props
                     label={item.caption || `${item.mediaType === "VIDEO" ? "Video" : "Fotografia"} ${index + 1}`}
                   />
                   <span className="absolute left-3 top-3 rounded-full bg-black/65 px-2.5 py-1 text-[10px] font-semibold text-white">
-                    {item.kind === "selected" ? "Nové · " : ""}{item.mediaType === "VIDEO" ? "Video" : String(index + 1).padStart(2, "0")}
+                    {item.kind === "selected" ? "Nové · " : item.kind === "library" ? "Knižnica · " : ""}{item.mediaType === "VIDEO" ? "Video" : String(index + 1).padStart(2, "0")}
                   </span>
                 </div>
 
@@ -458,6 +505,27 @@ export const CampaignGalleryField = forwardRef<CampaignGalleryFieldHandle, Props
             onChange={(event) => addItems(event.target.files)}
           />
         </label>
+        {editorItems.length < maxGalleryItems && (
+          <CampaignMediaLibraryPicker
+            items={mediaLibrary}
+            currentCampaignId={currentCampaignId}
+            disabledUrls={editorItems.flatMap((item) => item.kind === "selected" ? [] : [item.mediaUrl])}
+            multiple
+            maxSelection={maxGalleryItems - editorItems.length}
+            label="Pridať z knižnice"
+            onSelect={addLibraryItems}
+          />
+        )}
+        <button
+          type="button"
+          disabled={editorItems.length >= maxGalleryItems}
+          onClick={() => setSelectionMessage("Tlačidlo je pripravené. Teraz stlačte ⌘V alebo Ctrl+V.")}
+          className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--ink)] hover:underline disabled:cursor-not-allowed disabled:text-[#a4aaa5]"
+        >
+          <ClipboardPaste size={17} />
+          Vložiť screenshot
+          <kbd className="text-[10px] font-medium text-[#89918b]">⌘V / Ctrl+V</kbd>
+        </button>
         {removedItems.length > 0 && (
           <button type="button" onClick={restoreRemovedItems} className="inline-flex items-center gap-1.5 text-xs text-[#707a72] hover:text-[var(--ink)]">
             <RotateCcw size={14} /> Obnoviť odstránené ({removedItems.length})
@@ -465,7 +533,7 @@ export const CampaignGalleryField = forwardRef<CampaignGalleryFieldHandle, Props
         )}
       </div>
       <p className="mt-2 text-xs text-[#89918b]">
-        {galleryOnly ? `JPG, PNG alebo WebP do ${campaignImageSizeLabel}; MP4 do ${campaignVideoSizeLabel}.` : `Pre každú špeciálnu sekciu možno vybrať po jednej fotografii · JPG, PNG alebo WebP do ${campaignImageSizeLabel}; MP4 do ${campaignVideoSizeLabel}.`}
+        {galleryOnly ? `JPG, PNG alebo WebP do ${campaignImageSizeLabel}; MP4 do ${campaignVideoSizeLabel}. Screenshot môžete vložiť priamo zo schránky.` : `Pre každú špeciálnu sekciu možno vybrať po jednej fotografii · JPG, PNG alebo WebP do ${campaignImageSizeLabel}; MP4 do ${campaignVideoSizeLabel}. Screenshot môžete vložiť priamo zo schránky.`}
       </p>
       {uploadMessage && <p className="mt-2 text-xs font-medium text-[#35623d]" role="status">{uploadMessage}</p>}
       {selectionMessage && <p className="mt-2 text-xs font-medium text-[#9b5b23]" role="status">{selectionMessage}</p>}

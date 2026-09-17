@@ -14,12 +14,15 @@ import {
   type CampaignImageFieldHandle,
 } from "@/components/campaign-image-field";
 import { CampaignJsonAssistant } from "@/components/campaign-json-assistant";
+import { CampaignMediaUrlField } from "@/components/campaign-media-url-field";
+import type { CampaignMediaLibraryItem } from "@/lib/campaign-media-library-types";
 
 type Props = {
   campaign?: Campaign & { galleryItems?: CampaignGalleryItem[] };
   action: (formData: FormData) => void | Promise<void>;
   submitLabel: string;
   template?: "service" | "rental" | "seasonal";
+  mediaLibrary?: CampaignMediaLibraryItem[];
 };
 
 type CampaignField = {
@@ -92,7 +95,7 @@ function CampaignSubmitButton({ label }: { label: string }) {
   );
 }
 
-export function CampaignForm({ campaign, action, submitLabel, template = "service" }: Props) {
+export function CampaignForm({ campaign, action, submitLabel, template = "service", mediaLibrary = [] }: Props) {
   const router = useRouter();
   const galleryRef = useRef<CampaignGalleryFieldHandle>(null);
   const imageRefs = useRef<Record<string, CampaignImageFieldHandle | null>>({});
@@ -187,11 +190,13 @@ export function CampaignForm({ campaign, action, submitLabel, template = "servic
                 ?? (field.campaignKey === "offerImageUrl" ? campaign?.imageUrl : undefined)
                 ?? field.fallbackUrl
               }
+              currentCampaignId={campaign?.id}
+              mediaLibrary={mediaLibrary}
             />
           </div>
         ))}
         <div className="md:col-span-2 border-t border-[var(--line)] pt-7">
-          <CampaignGalleryField ref={galleryRef} items={campaign?.galleryItems ?? []} />
+          <CampaignGalleryField ref={galleryRef} items={campaign?.galleryItems ?? []} currentCampaignId={campaign?.id} mediaLibrary={mediaLibrary} />
         </div>
         <details className="md:col-span-2 border-t border-[var(--line)] pt-7" open={!campaign}>
           <summary className="cursor-pointer text-lg font-semibold">Obsah a dôveryhodnosť</summary>
@@ -216,7 +221,7 @@ export function CampaignForm({ campaign, action, submitLabel, template = "servic
             <label><span className="text-xs font-semibold uppercase tracking-[.12em] text-[#747d76]">Canonical URL</span><input className="admin-field" name="canonicalUrl" type="url" defaultValue={campaign?.canonicalUrl ?? ""} maxLength={1000} /></label>
             <label className="md:col-span-2"><span className="text-xs font-semibold uppercase tracking-[.12em] text-[#747d76]">Meta description *</span><textarea className="admin-field" name="seoDescription" defaultValue={campaign?.seoDescription ?? campaign?.description ?? defaults.description} maxLength={180} required /></label>
             <label><span className="text-xs font-semibold uppercase tracking-[.12em] text-[#747d76]">OG title</span><input className="admin-field" name="ogTitle" defaultValue={campaign?.ogTitle ?? ""} maxLength={100} /></label>
-            <label><span className="text-xs font-semibold uppercase tracking-[.12em] text-[#747d76]">OG obrázok URL</span><input className="admin-field" name="ogImageUrl" defaultValue={campaign?.ogImageUrl ?? ""} maxLength={1000} /></label>
+            <CampaignMediaUrlField label="OG obrázok URL" name="ogImageUrl" defaultValue={campaign?.ogImageUrl ?? ""} maxLength={1000} mediaLibrary={mediaLibrary} currentCampaignId={campaign?.id} mediaTypes={["IMAGE"]} labelClassName="text-xs font-semibold uppercase tracking-[.12em] text-[#747d76]" />
             <label className="md:col-span-2"><span className="text-xs font-semibold uppercase tracking-[.12em] text-[#747d76]">OG description</span><textarea className="admin-field" name="ogDescription" defaultValue={campaign?.ogDescription ?? ""} maxLength={300} /></label>
             <label><span className="text-xs font-semibold uppercase tracking-[.12em] text-[#747d76]">GDPR odkaz *</span><input className="admin-field" name="legalUrl" defaultValue={campaign?.legalUrl ?? "/ochrana-osobnych-udajov"} maxLength={1000} required /></label>
             <label className="flex items-center gap-3 self-end pb-3 text-sm"><input className="size-4 accent-[#26372a]" type="checkbox" name="noIndex" defaultChecked={campaign?.noIndex ?? false} /> Zakázať indexovanie</label>

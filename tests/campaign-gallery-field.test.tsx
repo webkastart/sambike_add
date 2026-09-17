@@ -1,11 +1,22 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CampaignGalleryField } from "@/components/campaign-gallery-field";
 
 vi.mock("@/lib/campaign-media-client", () => ({ uploadCampaignMedia: vi.fn() }));
 
-afterEach(cleanup);
+beforeEach(() => {
+  vi.stubGlobal("URL", {
+    ...URL,
+    createObjectURL: vi.fn(() => "blob:screenshot-preview"),
+    revokeObjectURL: vi.fn(),
+  });
+});
+
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 function submittedItems() {
   return Array.from(document.querySelectorAll<HTMLInputElement>('input[name="galleryItemData"]'))
@@ -42,5 +53,24 @@ describe("editor médií kampane", () => {
     expect(submittedItems().map((item) => item.id)).toEqual(["two"]);
     fireEvent.click(screen.getByRole("button", { name: "Obnoviť odstránené (1)" }));
     expect(submittedItems().map((item) => item.id)).toEqual(["two", "one"]);
+  });
+
+  it("pridá screenshot vložený zo schránky ako novú fotografiu", () => {
+    render(<CampaignGalleryField items={[]} galleryOnly />);
+    const screenshot = new File(["image bytes"], "screenshot.png", { type: "image/png", lastModified: 1 });
+
+    fireEvent.paste(screen.getByRole("button", { name: /Vložiť screenshot/ }), {
+      clipboardData: {
+        items: [{ kind: "file", type: "image/png", getAsFile: () => screenshot }],
+      },
+    });
+
+    expect(screen.getByAltText("Fotografia 1").getAttribute("src")).toBe("blob:screenshot-preview");
+    const submitted = document.querySelector<HTMLInputElement>('input[name="galleryNewItemData"]');
+    expect(JSON.parse(submitted?.value ?? "null")).toMatchObject({
+      caption: "",
+      placement: "GALLERY",
+      sortOrder: 0,
+    });
   });
 });

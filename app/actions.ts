@@ -212,6 +212,7 @@ function uploadErrorMessage(error: unknown) {
 async function uploadedCampaignMedia(formData: FormData, errorPath: string, galleryPlaces: number) {
   const uploaded: UploadedCampaignImages = {};
   const galleryItems: CampaignGalleryInput[] = [];
+  const cleanupUrls = new Set<string>();
 
   try {
     for (const field of campaignImageFields) {
@@ -224,33 +225,37 @@ async function uploadedCampaignMedia(formData: FormData, errorPath: string, gall
       }
       const item = await validateUploadedCampaignMedia(input.mediaUrl, "IMAGE");
       uploaded[field.url] = item.mediaUrl;
+      cleanupUrls.add(item.mediaUrl);
     }
 
-    for (const value of formData.getAll("galleryUploadedMedia")) {
-      const input = preparedMedia(value);
-      if (
-        (input.mediaType !== "IMAGE" && input.mediaType !== "VIDEO")
-        || typeof input.mediaUrl !== "string"
-        || galleryItems.length >= galleryPlaces
-      ) {
-        throw new CampaignMediaError(
-          galleryItems.length >= galleryPlaces
-            ? `Galéria môže obsahovať najviac ${maxGalleryItems} položiek.`
-            : "Nahraný súbor má neplatné údaje.",
-        );
-      }
+    for (const [fieldName, shouldCleanup] of [["galleryLibraryMedia", false], ["galleryUploadedMedia", true]] as const) {
+      for (const value of formData.getAll(fieldName)) {
+        const input = preparedMedia(value);
+        if (
+          (input.mediaType !== "IMAGE" && input.mediaType !== "VIDEO")
+          || typeof input.mediaUrl !== "string"
+          || galleryItems.length >= galleryPlaces
+        ) {
+          throw new CampaignMediaError(
+            galleryItems.length >= galleryPlaces
+              ? `Galéria môže obsahovať najviac ${maxGalleryItems} položiek.`
+              : "Nahraný súbor má neplatné údaje.",
+          );
+        }
 
-      const item = await validateUploadedCampaignMedia(
-        input.mediaUrl,
-        input.mediaType as CampaignGalleryMediaType,
-      );
-      galleryItems.push({
-        mediaType: item.mediaType,
-        mediaUrl: item.mediaUrl,
-        caption: galleryCaption(input.caption),
-        placement: galleryPlacement(input.placement, item.mediaType),
-        sortOrder: gallerySortOrder(input.sortOrder, galleryItems.length),
-      });
+        const item = await validateUploadedCampaignMedia(
+          input.mediaUrl,
+          input.mediaType as CampaignGalleryMediaType,
+        );
+        galleryItems.push({
+          mediaType: item.mediaType,
+          mediaUrl: item.mediaUrl,
+          caption: galleryCaption(input.caption),
+          placement: galleryPlacement(input.placement, item.mediaType),
+          sortOrder: gallerySortOrder(input.sortOrder, galleryItems.length),
+        });
+        if (shouldCleanup) cleanupUrls.add(item.mediaUrl);
+      }
     }
 
     const uploadValues = [
@@ -267,7 +272,10 @@ async function uploadedCampaignMedia(formData: FormData, errorPath: string, gall
         throw new CampaignMediaError("Obrázok bol odoslaný duplicitne. Obnovte stránku a skúste to znova.");
       }
       const imageUrl = await saveCampaignImage(formData.get(field.file));
-      if (imageUrl) uploaded[field.url] = imageUrl;
+      if (imageUrl) {
+        uploaded[field.url] = imageUrl;
+        cleanupUrls.add(imageUrl);
+      }
     }
     const newItemMetadata = formData.getAll("galleryNewItemData").map(preparedMedia);
     let fallbackIndex = 0;
@@ -285,11 +293,12 @@ async function uploadedCampaignMedia(formData: FormData, errorPath: string, gall
         placement: galleryPlacement(metadata.placement, item.mediaType),
         sortOrder: gallerySortOrder(metadata.sortOrder, galleryItems.length),
       });
+      if (item) cleanupUrls.add(item.mediaUrl);
     }
-    return { images: uploaded, galleryItems };
+    return { images: uploaded, galleryItems, cleanupUrls: [...cleanupUrls] };
   } catch (error) {
     await cleanupUploadedCampaignMedia(
-      [...Object.values(uploaded), ...galleryItems.map((item) => item.mediaUrl)],
+      [...cleanupUrls],
       "Campaign media upload failed",
     );
     redirectWithCampaignError(errorPath, uploadErrorMessage(error));
@@ -352,7 +361,7 @@ export async function createCampaign(formData: FormData) {
     });
   } catch (error) {
     await cleanupUploadedCampaignMedia(
-      [...Object.values(uploadedMedia.images), ...uploadedMedia.galleryItems.map((item) => item.mediaUrl)],
+      uploadedMedia.cleanupUrls,
       "Campaign create failed",
     );
     console.error("Campaign create failed:", error);
@@ -449,7 +458,7 @@ export async function updateCampaign(id: string, formData: FormData) {
     ]);
   } catch (error) {
     await cleanupUploadedCampaignMedia(
-      [...Object.values(uploadedMedia.images), ...uploadedMedia.galleryItems.map((item) => item.mediaUrl)],
+      uploadedMedia.cleanupUrls,
       "Campaign update failed",
     );
     console.error(`Campaign update ${id} failed:`, error);
@@ -599,7 +608,7 @@ export async function saveCampaignSections(id: string, formData: FormData) {
       prisma.campaignAudit.create({ data: { campaignId: id, action: "UPDATED", actor, metadata: { area: "content-sections" } } }),
     ]);
   } catch (error) {
-    await cleanupUploadedCampaignMedia([...Object.values(uploadedMedia.images), ...uploadedMedia.galleryItems.map((item) => item.mediaUrl)], "Campaign sections update failed");
+    await cleanupUploadedCampaignMedia(uploadedMedia.cleanupUrls, "Campaign sections update failed");
     console.error(`Campaign sections update ${id} failed:`, error);
     redirectWithCampaignError(`/admin/kampane/${id}`, "Obsah stránky sa nepodarilo uložiť. Skúste to znova.");
   }

@@ -18,6 +18,7 @@ import { useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { CampaignGalleryField, type CampaignGalleryFieldHandle } from "@/components/campaign-gallery-field";
 import { CampaignImageField, type CampaignImageFieldHandle } from "@/components/campaign-image-field";
+import { CampaignMediaUrlField } from "@/components/campaign-media-url-field";
 import {
   defaultSectionContent,
   type CampaignSectionContent,
@@ -25,12 +26,15 @@ import {
   type EditableCampaignSection,
   sectionContentString,
 } from "@/lib/campaign-sections";
+import type { CampaignMediaLibraryItem } from "@/lib/campaign-media-library-types";
 
 type Props = {
   sections: EditableCampaignSection[];
   galleryItems: CampaignGalleryItem[];
   action: (formData: FormData) => void | Promise<void>;
   previewHref: string;
+  currentCampaignId?: string;
+  mediaLibrary?: CampaignMediaLibraryItem[];
 };
 
 const sectionOptions: Array<{ type: CampaignSectionTypeValue; label: string; description: string }> = [
@@ -109,7 +113,7 @@ function StepsEditor({ section, updateContent }: { section: EditableCampaignSect
   return <div className="border-t border-[var(--line)] pt-6"><div><h4 className="font-semibold">Ako to prebieha</h4><p className="mt-1 text-xs text-[#89918b]">Krátke kroky zobrazené pri úvodnom obsahu.</p></div><div className="mt-4 space-y-3">{steps.map((step, index) => <div key={index} draggable onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", String(index)); }} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); moveStep(Number(event.dataTransfer.getData("text/plain")), index); }} className="grid gap-3 border-t border-[var(--line)] pt-4 sm:grid-cols-[auto_1fr_1.4fr_auto]"><span className="inline-flex size-9 cursor-grab items-center justify-center text-[#8a938c]" aria-label="Potiahnutím zmeniť poradie"><GripVertical size={16} /></span><TextControl label="Názov kroku" value={typeof step.title === "string" ? step.title : ""} maxLength={80} onChange={(value) => updateStep(index, "title", value)} /><TextControl label="Krátke vysvetlenie" value={typeof step.text === "string" ? step.text : ""} maxLength={240} multiline onChange={(value) => updateStep(index, "text", value)} /><div className="flex items-start pt-5"><button type="button" disabled={index === 0} onClick={() => moveStep(index, index - 1)} className="size-8 disabled:opacity-25" aria-label="Posunúť krok vyššie"><ArrowUp size={15} /></button><button type="button" disabled={index === steps.length - 1} onClick={() => moveStep(index, index + 1)} className="size-8 disabled:opacity-25" aria-label="Posunúť krok nižšie"><ArrowDown size={15} /></button><button type="button" onClick={() => updateContent(section.id, "steps", steps.filter((_, stepIndex) => stepIndex !== index))} className="size-8 text-[#9a4540]" aria-label="Odstrániť krok"><Trash2 size={15} /></button></div></div>)}</div><button type="button" onClick={() => updateContent(section.id, "steps", [...steps, { title: "", text: "" }])} className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-[var(--accent-dark)]"><Plus size={15} /> Pridať krok</button></div>;
 }
 
-export function CampaignContentEditor({ sections: initialSections, galleryItems, action, previewHref }: Props) {
+export function CampaignContentEditor({ sections: initialSections, galleryItems, action, previewHref, currentCampaignId, mediaLibrary = [] }: Props) {
   const [sections, setSections] = useState(() => initialSections.map((section, position) => ({ ...section, position })));
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingBackup, setEditingBackup] = useState<EditableCampaignSection | null>(null);
@@ -234,7 +238,7 @@ export function CampaignContentEditor({ sections: initialSections, galleryItems,
               </div>
 
               {editing && <div className="border-t border-[var(--line)] px-4 py-6 sm:px-12">
-                <SectionFields section={section} updateContent={updateContent} galleryItems={galleryOnlyItems} galleryRef={galleryRef} heroImageRef={heroImageRef} offerImageRef={offerImageRef} />
+                <SectionFields section={section} updateContent={updateContent} galleryItems={galleryOnlyItems} galleryRef={galleryRef} heroImageRef={heroImageRef} offerImageRef={offerImageRef} currentCampaignId={currentCampaignId} mediaLibrary={mediaLibrary} />
                 <div className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-3 border-t border-[var(--line)] pt-5">
                   <button type="button" onClick={() => { setEditingId(null); setEditingBackup(null); }} className="text-sm font-semibold text-[var(--accent-dark)]">Hotovo</button>
                   <button type="button" onClick={cancelEditor} className="text-sm text-[#6f786f]">Zrušiť úpravy sekcie</button>
@@ -260,21 +264,23 @@ export function CampaignContentEditor({ sections: initialSections, galleryItems,
   );
 }
 
-function SectionFields({ section, updateContent, galleryItems, galleryRef, heroImageRef, offerImageRef }: {
+function SectionFields({ section, updateContent, galleryItems, galleryRef, heroImageRef, offerImageRef, currentCampaignId, mediaLibrary }: {
   section: EditableCampaignSection;
   updateContent: (id: string, key: string, value: unknown) => void;
   galleryItems: CampaignGalleryItem[];
   galleryRef: React.RefObject<CampaignGalleryFieldHandle | null>;
   heroImageRef: React.RefObject<CampaignImageFieldHandle | null>;
   offerImageRef: React.RefObject<CampaignImageFieldHandle | null>;
+  currentCampaignId?: string;
+  mediaLibrary: CampaignMediaLibraryItem[];
 }) {
   const value = (key: string) => sectionContentString(section.content, key);
   const field = (key: string) => (next: string) => updateContent(section.id, key, next);
   const common = <div className="grid gap-5 sm:grid-cols-2"><TextControl label="Malý nadpis" value={value("eyebrow")} maxLength={100} onChange={field("eyebrow")} /><TextControl label="Hlavný nadpis" value={value("heading")} maxLength={180} required onChange={field("heading")} /><div className="sm:col-span-2"><TextControl label="Krátky popis" value={value("description")} maxLength={1200} multiline onChange={field("description")} /></div></div>;
 
-  if (section.type === "HERO" || section.type === "OFFER") return <div className="space-y-7">{common}<div className="grid gap-5 sm:grid-cols-2">{section.type === "OFFER" && <TextControl label="Cena alebo podmienky" value={value("priceText")} maxLength={180} required onChange={field("priceText")} />}<TextControl label="Text tlačidla" value={value("ctaLabel")} maxLength={80} required onChange={field("ctaLabel")} /></div><CampaignImageField ref={section.type === "HERO" ? heroImageRef : offerImageRef} label={section.type === "HERO" ? "Úvodný obrázok" : "Obrázok ponuky"} description="Vyberte fotografiu, ktorá sa zobrazí v tejto sekcii." fileName={section.type === "HERO" ? "imageFile" : "offerImageFile"} urlName={section.type === "HERO" ? "imageUrl" : "offerImageUrl"} currentImageUrl={value("imageUrl") || (section.type === "HERO" ? "/sambike_store1.jpeg" : "/sambike_image.jpeg")} />{section.type === "HERO" && <StepsEditor section={section} updateContent={updateContent} />}</div>;
+  if (section.type === "HERO" || section.type === "OFFER") return <div className="space-y-7">{common}<div className="grid gap-5 sm:grid-cols-2">{section.type === "OFFER" && <TextControl label="Cena alebo podmienky" value={value("priceText")} maxLength={180} required onChange={field("priceText")} />}<TextControl label="Text tlačidla" value={value("ctaLabel")} maxLength={80} required onChange={field("ctaLabel")} /></div><CampaignImageField ref={section.type === "HERO" ? heroImageRef : offerImageRef} label={section.type === "HERO" ? "Úvodný obrázok" : "Obrázok ponuky"} description="Vyberte fotografiu, ktorá sa zobrazí v tejto sekcii." fileName={section.type === "HERO" ? "imageFile" : "offerImageFile"} urlName={section.type === "HERO" ? "imageUrl" : "offerImageUrl"} currentImageUrl={value("imageUrl") || (section.type === "HERO" ? "/sambike_store1.jpeg" : "/sambike_image.jpeg")} currentCampaignId={currentCampaignId} mediaLibrary={mediaLibrary} onUrlChange={field("imageUrl")} />{section.type === "HERO" && <StepsEditor section={section} updateContent={updateContent} />}</div>;
 
-  if (section.type === "GALLERY") return <div className="space-y-7">{common}<input type="hidden" name="galleryEditorPresent" value="1" /><CampaignGalleryField ref={galleryRef} items={galleryItems} galleryOnly /></div>;
+  if (section.type === "GALLERY") return <div className="space-y-7">{common}<input type="hidden" name="galleryEditorPresent" value="1" /><CampaignGalleryField ref={galleryRef} items={galleryItems} galleryOnly currentCampaignId={currentCampaignId} mediaLibrary={mediaLibrary} /></div>;
 
   if (section.type === "BENEFITS" || section.type === "FAQ" || section.type === "TESTIMONIALS") {
     const items = contentItems(section.content);
@@ -287,8 +293,8 @@ function SectionFields({ section, updateContent, galleryItems, galleryRef, heroI
     return <div className="space-y-7">{common}<div className="space-y-3">{items.map((item, index) => <div key={index} draggable onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", String(index)); }} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); dropItem(Number(event.dataTransfer.getData("text/plain")), index); }} className="grid gap-3 border-t border-[var(--line)] pt-4 sm:grid-cols-[auto_1fr_1.4fr_auto]"><span className="inline-flex size-9 cursor-grab items-center justify-center text-[#8a938c]" aria-label="Potiahnutím zmeniť poradie"><GripVertical size={16} /></span><TextControl label={labels[0]} value={typeof item[keys[0]] === "string" ? item[keys[0]] as string : ""} maxLength={section.type === "FAQ" ? 160 : 100} onChange={(next) => updateItem(index, keys[0], next)} /><TextControl label={labels[1]} value={typeof item[keys[1]] === "string" ? item[keys[1]] as string : ""} maxLength={section.type === "FAQ" ? 600 : 500} multiline onChange={(next) => updateItem(index, keys[1], next)} /><div className="flex items-start pt-5"><button type="button" disabled={index === 0} onClick={() => moveItem(index, -1)} className="size-8 disabled:opacity-25" aria-label="Posunúť položku vyššie"><ArrowUp size={15} /></button><button type="button" disabled={index === items.length - 1} onClick={() => moveItem(index, 1)} className="size-8 disabled:opacity-25" aria-label="Posunúť položku nižšie"><ArrowDown size={15} /></button><button type="button" onClick={() => updateContent(section.id, "items", items.filter((_, itemIndex) => itemIndex !== index))} className="size-8 text-[#9a4540]" aria-label="Odstrániť položku"><Trash2 size={15} /></button></div></div>)}<button type="button" onClick={() => updateContent(section.id, "items", [...items, { [keys[0]]: "", [keys[1]]: "" }])} className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--accent-dark)]"><Plus size={15} /> Pridať {singular}</button></div></div>;
   }
 
-  if (section.type === "VIDEO") return <div className="space-y-7">{common}<TextControl label="Odkaz na video" value={value("videoUrl")} maxLength={1000} onChange={field("videoUrl")} /><TextControl label="Popis videa" value={value("caption")} maxLength={240} onChange={field("caption")} /></div>;
+  if (section.type === "VIDEO") return <div className="space-y-7">{common}<CampaignMediaUrlField label="Odkaz na video" value={value("videoUrl")} onChange={field("videoUrl")} mediaLibrary={mediaLibrary} currentCampaignId={currentCampaignId} mediaTypes={["VIDEO"]} /><TextControl label="Popis videa" value={value("caption")} maxLength={240} onChange={field("caption")} /></div>;
   if (section.type === "CTA") return <div className="space-y-7">{common}<div className="grid gap-5 sm:grid-cols-2"><TextControl label="Text tlačidla" value={value("ctaLabel")} maxLength={80} onChange={field("ctaLabel")} /><TextControl label="Kam tlačidlo vedie" value={value("href")} maxLength={1000} onChange={field("href")} /></div></div>;
-  if (section.type === "TEXT_IMAGE") return <div className="space-y-7">{common}<div className="grid gap-5 sm:grid-cols-2"><TextControl label="Odkaz na obrázok" value={value("imageUrl")} maxLength={1000} onChange={field("imageUrl")} /><TextControl label="Popis obrázka" value={value("imageAlt")} maxLength={240} onChange={field("imageAlt")} /></div></div>;
+  if (section.type === "TEXT_IMAGE") return <div className="space-y-7">{common}<div className="grid gap-5 sm:grid-cols-2"><CampaignMediaUrlField label="Odkaz na obrázok" value={value("imageUrl")} onChange={field("imageUrl")} mediaLibrary={mediaLibrary} currentCampaignId={currentCampaignId} mediaTypes={["IMAGE"]} /><TextControl label="Popis obrázka" value={value("imageAlt")} maxLength={240} onChange={field("imageAlt")} /></div></div>;
   return common;
 }

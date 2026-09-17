@@ -1,10 +1,12 @@
 import type { Campaign } from "@/generated/prisma/client";
+import { CampaignMediaUrlField } from "@/components/campaign-media-url-field";
+import type { CampaignMediaLibraryItem } from "@/lib/campaign-media-library-types";
 
-type Props = { campaign: Campaign; action: (formData: FormData) => void | Promise<void> };
+type Props = { campaign: Campaign; action: (formData: FormData) => void | Promise<void>; mediaLibrary?: CampaignMediaLibraryItem[] };
 
 const labelClass = "text-xs font-semibold uppercase tracking-[.12em] text-[#747d76]";
 
-export function CampaignSettingsForm({ campaign, action }: Props) {
+export function CampaignSettingsForm({ campaign, action, mediaLibrary = [] }: Props) {
   return <details className="mt-12 border-y border-[var(--line)] py-7">
     <summary className="cursor-pointer text-lg font-semibold">Nastavenia kampane a SEO</summary>
     <p className="mt-2 text-sm text-[#737c75]">Kontaktné údaje, adresa stránky a údaje pre vyhľadávače.</p>
@@ -23,7 +25,7 @@ export function CampaignSettingsForm({ campaign, action }: Props) {
       <label><span className={labelClass}>Canonical URL</span><input className="admin-field" type="url" name="canonicalUrl" defaultValue={campaign.canonicalUrl ?? ""} maxLength={1000} /></label>
       <label className="sm:col-span-2"><span className={labelClass}>Popis vo vyhľadávači</span><textarea className="admin-field" name="seoDescription" defaultValue={campaign.seoDescription ?? campaign.description} maxLength={180} required /></label>
       <label><span className={labelClass}>Názov pri zdieľaní</span><input className="admin-field" name="ogTitle" defaultValue={campaign.ogTitle ?? ""} maxLength={100} /></label>
-      <label><span className={labelClass}>Obrázok pri zdieľaní</span><input className="admin-field" name="ogImageUrl" defaultValue={campaign.ogImageUrl ?? ""} maxLength={1000} /></label>
+      <CampaignMediaUrlField label="Obrázok pri zdieľaní" name="ogImageUrl" defaultValue={campaign.ogImageUrl ?? ""} maxLength={1000} mediaLibrary={mediaLibrary} currentCampaignId={campaign.id} mediaTypes={["IMAGE"]} labelClassName={labelClass} />
       <label className="sm:col-span-2"><span className={labelClass}>Popis pri zdieľaní</span><textarea className="admin-field" name="ogDescription" defaultValue={campaign.ogDescription ?? ""} maxLength={300} /></label>
       <label><span className={labelClass}>Ochrana osobných údajov</span><input className="admin-field" name="legalUrl" defaultValue={campaign.legalUrl} maxLength={1000} required /></label>
       <label className="flex items-center gap-3 self-end pb-3 text-sm"><input className="size-4 accent-[#26372a]" type="checkbox" name="noIndex" defaultChecked={campaign.noIndex} /> Zakázať indexovanie</label>

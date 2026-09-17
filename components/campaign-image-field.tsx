@@ -4,7 +4,9 @@
 
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { ImageOff, ImagePlus, X } from "lucide-react";
+import { CampaignMediaLibraryPicker } from "@/components/campaign-media-library-picker";
 import { type PreparedCampaignMedia, uploadCampaignMedia } from "@/lib/campaign-media-client";
+import type { CampaignMediaLibraryItem } from "@/lib/campaign-media-library-types";
 import {
   campaignImageSizeLabel,
   maxCampaignImageSize,
@@ -17,6 +19,9 @@ type Props = {
   label: string;
   urlName: string;
   currentImageUrl?: string;
+  currentCampaignId?: string;
+  mediaLibrary?: CampaignMediaLibraryItem[];
+  onUrlChange?: (value: string) => void;
 };
 
 const allowedImageTypes = ["image/jpeg", "image/png", "image/webp"];
@@ -32,7 +37,7 @@ function imageSelectionError(file: File) {
 }
 
 export const CampaignImageField = forwardRef<CampaignImageFieldHandle, Props>(function CampaignImageField(
-  { description, fileName: fileInputName, label, urlName, currentImageUrl },
+  { description, fileName: fileInputName, label, urlName, currentImageUrl, currentCampaignId, mediaLibrary = [], onUrlChange },
   ref,
 ) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -85,6 +90,15 @@ export const CampaignImageField = forwardRef<CampaignImageFieldHandle, Props>(fu
   function clearSelection() {
     if (inputRef.current) inputRef.current.value = "";
     selectImage();
+  }
+
+  function selectLibraryImage(item: CampaignMediaLibraryItem) {
+    clearSelection();
+    setFailedImageUrl("");
+    setUrlValue(item.mediaUrl);
+    onUrlChange?.(item.mediaUrl);
+    setFileName(item.label || item.mediaUrl.split("/").pop() || "Médium z knižnice");
+    setSelectionMessage("Vybrané z knižnice médií.");
   }
 
   useImperativeHandle(ref, () => ({
@@ -153,6 +167,12 @@ export const CampaignImageField = forwardRef<CampaignImageFieldHandle, Props>(fu
                 onChange={(event) => selectImage(event.target.files?.[0])}
               />
             </label>
+            <CampaignMediaLibraryPicker
+              items={mediaLibrary}
+              currentCampaignId={currentCampaignId}
+              mediaTypes={["IMAGE"]}
+              onSelect={([item]) => selectLibraryImage(item)}
+            />
             {previewUrl && (
               <button className="inline-flex items-center gap-1 text-xs text-[#707a72] hover:text-[var(--ink)]" type="button" onClick={clearSelection}>
                 <X size={14} /> Zrušiť výber
@@ -162,7 +182,7 @@ export const CampaignImageField = forwardRef<CampaignImageFieldHandle, Props>(fu
           <p className="mt-1 text-xs text-[#89918b]">Originál bez kompresie · JPG, PNG alebo WebP do {campaignImageSizeLabel}.</p>
           {fileName && <p className="mt-1 max-w-sm truncate text-xs font-medium text-[#5f6a62]">{fileName}</p>}
           {uploadMessage && <p className="mt-2 text-xs font-medium text-[#35623d]" role="status">{uploadMessage}</p>}
-          {selectionMessage && <p className="mt-2 text-xs font-medium text-[#a1433e]" role="alert">{selectionMessage}</p>}
+          {selectionMessage && <p className={`mt-2 text-xs font-medium ${selectionMessage === "Vybrané z knižnice médií." ? "text-[#35623d]" : "text-[#a1433e]"}`} role={selectionMessage === "Vybrané z knižnice médií." ? "status" : "alert"}>{selectionMessage}</p>}
         </div>
       </div>
 
@@ -173,7 +193,7 @@ export const CampaignImageField = forwardRef<CampaignImageFieldHandle, Props>(fu
           name={urlName}
           type="text"
           value={urlValue}
-          onChange={(event) => setUrlValue(event.target.value)}
+          onChange={(event) => { setUrlValue(event.target.value); onUrlChange?.(event.target.value); }}
           placeholder="https://…"
         />
       </label>

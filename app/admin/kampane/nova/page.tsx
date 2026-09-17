@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { createCampaign } from "@/app/actions";
 import { CampaignForm } from "@/components/campaign-form";
+import { getCampaignMediaLibrary } from "@/lib/campaign-media-library";
 
 export default async function NewCampaignPage({
   searchParams,
@@ -9,6 +10,7 @@ export default async function NewCampaignPage({
   searchParams: Promise<{ error?: string; sablona?: string }>;
 }) {
   const query = await searchParams;
+  const mediaLibrary = await getCampaignMediaLibrary();
   return (
     <>
       <Link href="/admin" className="inline-flex items-center gap-2 text-sm text-[#707a72] hover:text-[var(--ink)]"><ArrowLeft size={15} /> Späť na kampane</Link>
@@ -22,7 +24,7 @@ export default async function NewCampaignPage({
           {query.error}
         </p>
       )}
-      <CampaignForm action={createCampaign} submitLabel="Vytvoriť koncept" template={query.sablona === "rental" || query.sablona === "seasonal" ? query.sablona : "service"} />
+      <CampaignForm action={createCampaign} submitLabel="Vytvoriť koncept" template={query.sablona === "rental" || query.sablona === "seasonal" ? query.sablona : "service"} mediaLibrary={mediaLibrary} />
     </>
   );
 }
