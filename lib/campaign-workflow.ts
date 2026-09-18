@@ -94,6 +94,7 @@ type ReadinessCampaign = {
   name: string; slug: string; headline: string; description: string; ctaText: string; priceText: string;
   phone: string; email: string; imageUrl: string; formEnabled: boolean; legalUrl: string;
   seoTitle: string | null; seoDescription: string | null; address: string | null; openingHours: string | null;
+  canonicalUrl?: string | null; ogImageUrl?: string | null;
   metaAd?: { destinationUrl: string; dailyBudgetCents: number } | null;
   galleryItems?: Array<{ mediaUrl: string }>;
 };
@@ -112,10 +113,12 @@ export function campaignReadiness(campaign: ReadinessCampaign, options: { slugUn
     const url = new URL(appUrl);
     productionUrlReady = url.protocol === "https:" && !["localhost", "127.0.0.1"].includes(url.hostname);
   } catch { /* invalid */ }
+  const unfinished = /\b(lorem|ipsum|todo|tbd|placeholder|doplňte|doplnte|sem napíšte)\b/i;
   const items: ReadinessItem[] = [
     { key: "name", label: "Názov kampane", level: "required", ready: campaign.name.trim().length >= 2 },
     { key: "slug", label: "Jedinečná adresa stránky", level: "required", ready: /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(campaign.slug) && options.slugUnique !== false },
     { key: "content", label: "Hlavný nadpis a popis", level: "required", ready: campaign.headline.trim().length >= 5 && campaign.description.trim().length >= 20 },
+    { key: "placeholders", label: "Obsah bez placeholderov", level: "required", ready: ![campaign.name, campaign.headline, campaign.description, campaign.ctaText, campaign.priceText].some((value) => unfinished.test(value)) },
     { key: "cta", label: "CTA a cena/podmienky", level: "required", ready: campaign.ctaText.trim().length >= 2 && campaign.priceText.trim().length >= 2 },
     { key: "contact", label: "Platný telefón a e-mail", level: "required", ready: /[0-9]{7,}/.test(campaign.phone.replace(/\s/g, "")) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(campaign.email) },
     { key: "hero", label: "Hero obrázok", level: "required", ready: validUrl(campaign.imageUrl, true) },
@@ -123,6 +126,8 @@ export function campaignReadiness(campaign: ReadinessCampaign, options: { slugUn
     { key: "form", label: "Formulár alebo kontaktná alternatíva", level: "required", ready: campaign.formEnabled || Boolean(campaign.email || campaign.phone) },
     { key: "legal", label: "Odkaz na ochranu osobných údajov", level: "required", ready: validUrl(campaign.legalUrl, true) },
     { key: "seo", label: "SEO title a description", level: "required", ready: Boolean(campaign.seoTitle?.trim()) && Boolean(campaign.seoDescription?.trim()) },
+    { key: "canonical", label: "Canonical URL", level: "recommended", ready: Boolean(campaign.canonicalUrl && validUrl(campaign.canonicalUrl)) },
+    { key: "ogImage", label: "Open Graph obrázok", level: "recommended", ready: Boolean(campaign.ogImageUrl && validUrl(campaign.ogImageUrl, true)) },
     { key: "productionUrl", label: "Verejná HTTPS produkčná URL", level: options.requireProductionUrl === false ? "recommended" : "required", ready: productionUrlReady, detail: appUrl || "APP_URL nie je nastavené" },
     { key: "business", label: "Adresa a otváracie hodiny", level: "recommended", ready: Boolean(campaign.address?.trim()) && Boolean(campaign.openingHours?.trim()) },
     { key: "meta", label: "Meta nastavenia reklamy", level: "recommended", ready: !campaign.metaAd || (validUrl(campaign.metaAd.destinationUrl) && campaign.metaAd.dailyBudgetCents > 0) },

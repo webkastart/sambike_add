@@ -26,10 +26,10 @@ export function getConfiguredNotificationEmails() {
 }
 
 export async function getNotificationRecipientSettings() {
+  const stored = await prisma.leadNotificationRecipient.findMany({ orderBy: { email: "asc" } });
+  if (stored.length > 0) return stored.map(({ email, enabled }) => ({ email, enabled }));
   const emails = getConfiguredNotificationEmails();
-  const preferences = emails.length > 0
-    ? await prisma.leadNotificationRecipient.findMany({ where: { email: { in: emails } } })
-    : [];
+  const preferences: Array<{ email: string; enabled: boolean }> = [];
   const preferenceByEmail = new Map(preferences.map((preference) => [preference.email, preference.enabled]));
 
   return emails.map((email) => ({

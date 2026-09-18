@@ -7,7 +7,7 @@ import { CampaignContentEditor } from "@/components/campaign-content-editor";
 import { CampaignSettingsForm } from "@/components/campaign-settings-form";
 import { MetaAdSection } from "@/components/meta-ad-section";
 import { prisma } from "@/lib/prisma";
-import { getMetaConnectionSummary } from "@/lib/meta-ads";
+import { getMetaConnectionSettings } from "@/lib/meta-ads";
 import { createMetaAd, deleteMetaAd, setMetaAdStatus, syncMetaAd, updateMetaAdBudget } from "@/app/meta-actions";
 import { resolvePeriod } from "@/lib/date-range";
 import { attributionSource } from "@/lib/crm";
@@ -259,7 +259,7 @@ export default async function EditCampaignPage({
         campaign={campaign}
         ad={campaign.metaAd}
         leadCount={campaign._count.leads}
-        connection={getMetaConnectionSummary()}
+        connection={await getMetaConnectionSettings()}
         createAction={createMetaAction}
         startAction={startMetaAction}
         pauseAction={pauseMetaAction}

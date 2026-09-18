@@ -11,7 +11,9 @@ const mocks = vi.hoisted(() => ({
   verifyTurnstile: vi.fn(),
   revalidatePath: vi.fn(),
   configuredMetaPixelId: vi.fn(),
+  getMetaPixelSettings: vi.fn(),
   setMetaPixelEnabled: vi.fn(),
+  getOperationalSettings: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
@@ -22,8 +24,10 @@ vi.mock("@/lib/rate-limit", () => ({ consumeRateLimit: mocks.consumeRateLimit, r
 vi.mock("@/lib/turnstile", () => ({ verifyTurnstile: mocks.verifyTurnstile }));
 vi.mock("@/lib/meta-pixel", () => ({
   configuredMetaPixelId: mocks.configuredMetaPixelId,
+  getMetaPixelSettings: mocks.getMetaPixelSettings,
   setMetaPixelEnabled: mocks.setMetaPixelEnabled,
 }));
+vi.mock("@/lib/operational-settings", () => ({ getOperationalSettings: mocks.getOperationalSettings }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     campaign: { findUnique: mocks.campaignFindUnique },
@@ -63,7 +67,9 @@ describe("server action security and lead submission", () => {
     mocks.consumeRateLimit.mockReset().mockResolvedValue(true);
     mocks.verifyTurnstile.mockReset().mockResolvedValue(true);
     mocks.configuredMetaPixelId.mockReset().mockReturnValue("123456789012345");
+    mocks.getMetaPixelSettings.mockReset().mockResolvedValue({ configured: true, enabled: false, pixelId: "123456789012345", source: "environment" });
     mocks.setMetaPixelEnabled.mockReset().mockResolvedValue({ id: "default", metaPixelEnabled: true });
+    mocks.getOperationalSettings.mockReset().mockResolvedValue({ privacyPolicyVersion: "2026-09-16" });
   });
 
   it("rejects an admin mutation without a session", async () => {
@@ -83,7 +89,7 @@ describe("server action security and lead submission", () => {
   it("chráni a ukladá globálny prepínač Meta Pixelu", async () => {
     const enabled = new FormData();
     enabled.set("metaPixelEnabled", "on");
-    await expect(updateMetaPixelSetting(enabled)).rejects.toThrow("REDIRECT:/admin/nastavenia?pixelSaved=1");
+    await expect(updateMetaPixelSetting(enabled)).rejects.toThrow("REDIRECT:/admin/spustenie?saved=settings");
     expect(mocks.setMetaPixelEnabled).toHaveBeenCalledWith(true);
 
     mocks.requireAdmin.mockRejectedValueOnce(new Error("Neautorizovaný prístup."));
@@ -91,10 +97,10 @@ describe("server action security and lead submission", () => {
   });
 
   it("nepovolí zapnúť Meta Pixel bez platného ID", async () => {
-    mocks.configuredMetaPixelId.mockReturnValueOnce(null);
+    mocks.getMetaPixelSettings.mockResolvedValueOnce({ configured: false, enabled: false, pixelId: null, source: "missing" });
     const form = new FormData();
     form.set("metaPixelEnabled", "on");
-    await expect(updateMetaPixelSetting(form)).rejects.toThrow("REDIRECT:/admin/nastavenia?pixelError=missing");
+    await expect(updateMetaPixelSetting(form)).rejects.toThrow("REDIRECT:/admin/spustenie?error=Pixel+nemožno+zapnúť+bez+platného+ID.&section=settings");
     expect(mocks.setMetaPixelEnabled).not.toHaveBeenCalled();
   });
 

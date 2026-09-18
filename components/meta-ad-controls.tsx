@@ -4,6 +4,7 @@ import { useTransition } from "react";
 import { LoaderCircle, Pause, Play, RefreshCw, Trash2 } from "lucide-react";
 
 type Action = () => Promise<void>;
+type StartAction = (formData: FormData) => Promise<void>;
 
 export function MetaAdControls({
   active,
@@ -17,7 +18,7 @@ export function MetaAdControls({
   active: boolean;
   canActivate: boolean;
   hasRemote: boolean;
-  startAction: Action;
+  startAction: StartAction;
   pauseAction: Action;
   syncAction: Action;
   deleteAction: Action;
@@ -43,7 +44,9 @@ export function MetaAdControls({
           disabled={pending || !canActivate}
           onClick={() => {
             if (window.confirm("Spustiť reklamu? Meta môže od tejto chvíle míňať nastavený denný rozpočet.")) {
-              run(startAction);
+              const confirmation = new FormData();
+              confirmation.set("liveConfirmation", "activate-live");
+              run(() => startAction(confirmation));
             }
           }}
           className="inline-flex items-center gap-2 rounded-[3px] bg-[var(--accent-dark)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#075eac] disabled:opacity-50"

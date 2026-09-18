@@ -42,10 +42,10 @@ export function LeadForm({ campaignId, campaignSlug, offerType, formToken, turns
     if (!state.success) return;
     formRef.current?.reset();
     if (!leadTrackedRef.current) {
-      trackEvent("Lead", { campaign_slug: campaignSlug, interest_type: offerType, variant });
+      trackEvent("Lead", { campaign_slug: campaignSlug, interest_type: offerType, variant, event_id: `lead:${formToken.split(".").at(-1) ?? campaignId}` });
       leadTrackedRef.current = true;
     }
-  }, [campaignSlug, offerType, state.success, variant]);
+  }, [campaignId, campaignSlug, formToken, offerType, state.success, variant]);
 
   if (state.success) {
     return (

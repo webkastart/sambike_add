@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createHmac } from "node:crypto";
+import { getOperationalSettings } from "@/lib/operational-settings";
 
 const defaultApiVersion = "v25.0";
 const defaultLatitude = 48.9446;
@@ -68,6 +69,15 @@ export class MetaAdsError extends Error {
   }
 }
 
+export function assertMetaBudgetLimits(dailyBudgetCents: number, otherActiveBudgetCents: number, limits: Pick<MetaConnectionSummary, "maxCampaignDailyBudgetCents" | "maxGlobalDailyBudgetCents">) {
+  if (dailyBudgetCents > limits.maxCampaignDailyBudgetCents) throw new MetaAdsError("Rozpočet prekračuje limit jednej kampane.");
+  if (otherActiveBudgetCents + dailyBudgetCents > limits.maxGlobalDailyBudgetCents) throw new MetaAdsError("Rozpočet by prekročil globálny denný limit.");
+}
+
+export function hasExplicitLiveConfirmation(value: unknown) {
+  return value === "activate-live";
+}
+
 export function getMetaMode(): "sandbox" | "live" {
   return process.env.META_MODE?.trim().toLowerCase() === "live" ? "live" : "sandbox";
 }
@@ -113,6 +123,18 @@ export function getMetaConnectionSummary(): MetaConnectionSummary {
     mode: getMetaMode(),
     maxCampaignDailyBudgetCents: positiveCents("META_MAX_CAMPAIGN_DAILY_BUDGET_CENTS", 5_000),
     maxGlobalDailyBudgetCents: positiveCents("META_MAX_GLOBAL_DAILY_BUDGET_CENTS", 10_000),
+  };
+}
+
+export async function getMetaConnectionSettings(): Promise<MetaConnectionSummary> {
+  const [summary, settings] = await Promise.all([
+    Promise.resolve(getMetaConnectionSummary()),
+    getOperationalSettings(),
+  ]);
+  return {
+    ...summary,
+    maxCampaignDailyBudgetCents: settings.maxCampaignDailyBudgetCents,
+    maxGlobalDailyBudgetCents: settings.maxGlobalDailyBudgetCents,
   };
 }
 
@@ -197,13 +219,22 @@ function publicImageUrl(config: MetaConfig, imageUrl: string) {
 
 export async function verifyMetaConnection() {
   const config = getMetaConfig();
-  const [account, page] = await Promise.all([
+  const settings = await getOperationalSettings();
+  const [account, page, permissions, instagram, datasets] = await Promise.all([
     metaRequest<{ id: string; name: string; account_status?: number; currency?: string; timezone_name?: string; spend_cap?: string; amount_spent?: string }>(
       `act_${config.adAccountId}`,
       { params: { fields: "id,name,account_status,currency,timezone_name,spend_cap,amount_spent" } },
     ),
     metaRequest<{ id: string; name: string }>(config.pageId, { params: { fields: "id,name" } }),
+    metaRequest<{ data?: Array<{ permission?: string; status?: string }> }>("me/permissions"),
+    config.instagramActorId
+      ? metaRequest<{ id: string; username?: string }>(config.instagramActorId, { params: { fields: "id,username" } })
+      : Promise.resolve(null),
+    settings.metaPixelId
+      ? metaRequest<{ data?: Array<{ id?: string }> }>(`act_${config.adAccountId}/adspixels`, { params: { fields: "id", limit: 100 } }).catch(() => null)
+      : Promise.resolve(null),
   ]);
+  const granted = new Set((permissions.data ?? []).filter((item) => item.status === "granted").map((item) => item.permission));
   return {
     accountName: account.name,
     pageName: page.name,
@@ -212,6 +243,10 @@ export async function verifyMetaConnection() {
     timezoneName: account.timezone_name ?? "",
     spendCapCents: account.spend_cap ? Number.parseInt(account.spend_cap, 10) || null : null,
     amountSpentCents: account.amount_spent ? Number.parseInt(account.amount_spent, 10) || null : null,
+    pageAvailable: Boolean(page.id),
+    instagramAvailable: config.instagramActorId ? Boolean(instagram?.id) : false,
+    permissionsOk: granted.has("ads_management"),
+    datasetAssigned: settings.metaPixelId && datasets ? Boolean(datasets.data?.some((item) => item.id === settings.metaPixelId)) : null,
   };
 }
 

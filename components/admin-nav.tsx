@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Megaphone, Settings, Users } from "lucide-react";
+import { LayoutDashboard, Megaphone, Rocket, Users } from "lucide-react";
 
 const items = [
   { href: "/admin", label: "Prehľad", icon: LayoutDashboard },
   { href: "/admin/kampane#kampane", label: "Kampane", icon: Megaphone },
   { href: "/admin/leady", label: "Záujemcovia", mobileLabel: "Leady", icon: Users },
-  { href: "/admin/nastavenia", label: "Nastavenia", icon: Settings },
+  { href: "/admin/spustenie", label: "Spustenie", icon: Rocket },
 ];
 
 export function AdminNav() {

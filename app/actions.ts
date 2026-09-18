@@ -23,7 +23,8 @@ import { leadDedupeKey, verifyLeadFormToken } from "@/lib/lead-protection";
 import { normalizePhone, parseLeadSubmission } from "@/lib/lead-validation";
 import { consumeRateLimit, requestIp } from "@/lib/rate-limit";
 import { privacyPolicyVersion } from "@/lib/security-config";
-import { configuredMetaPixelId, setMetaPixelEnabled } from "@/lib/meta-pixel";
+import { getOperationalSettings } from "@/lib/operational-settings";
+import { getMetaPixelSettings, setMetaPixelEnabled } from "@/lib/meta-pixel";
 import { verifyTurnstile } from "@/lib/turnstile";
 import type { CampaignSectionType, Prisma } from "@/generated/prisma/client";
 import {
@@ -64,21 +65,21 @@ export async function updateLeadNotificationRecipients(formData: FormData) {
     })),
   );
 
-  revalidatePath("/admin/nastavenia");
-  redirect("/admin/nastavenia?saved=1");
+  revalidatePath("/admin/spustenie");
+  redirect("/admin/spustenie?saved=recipients");
 }
 
 export async function updateMetaPixelSetting(formData: FormData) {
   await requireAdmin();
   const enabled = formData.get("metaPixelEnabled") === "on";
 
-  if (enabled && !configuredMetaPixelId()) {
-    redirect("/admin/nastavenia?pixelError=missing");
+  if (enabled && !(await getMetaPixelSettings()).configured) {
+    redirect("/admin/spustenie?error=Pixel+nemožno+zapnúť+bez+platného+ID.&section=settings");
   }
 
   await setMetaPixelEnabled(enabled);
-  revalidatePath("/admin/nastavenia");
-  redirect("/admin/nastavenia?pixelSaved=1");
+  revalidatePath("/admin/spustenie");
+  redirect("/admin/spustenie?saved=settings");
 }
 
 const campaignImageFields = [
@@ -154,7 +155,6 @@ function hasSubmittedCampaignImage(formData: FormData) {
 
 function preparedMedia(value: FormDataEntryValue | null) {
   if (typeof value !== "string") throw new CampaignMediaError("Nahraný súbor má neplatné údaje.");
-
   try {
     return JSON.parse(value) as Record<string, unknown>;
   } catch {
@@ -1018,6 +1018,7 @@ export async function createLead(
     landingPage: safeAttributionUrl(data.landingPage || "", true),
     referrer: safeAttributionUrl(data.referrer || "", false),
   };
+  const operationalSettings = await getOperationalSettings();
   try {
     await prisma.$transaction(async (tx) => tx.lead.create({
       data: {
@@ -1031,7 +1032,7 @@ export async function createLead(
       note: data.note,
       consent: true,
       consentAt: new Date(),
-      consentVersion: privacyPolicyVersion(),
+      consentVersion: operationalSettings.privacyPolicyVersion || privacyPolicyVersion(),
       dedupeKey,
       possibleDuplicate: Boolean(possibleDuplicate),
       variant: data.variant,

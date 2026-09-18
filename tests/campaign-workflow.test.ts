@@ -11,7 +11,7 @@ import {
   variantConversion,
   verifyCampaignPreviewToken,
 } from "@/lib/campaign-workflow";
-import { getMetaConnectionSummary, getMetaMode, setRemoteMetaAdStatus } from "@/lib/meta-ads";
+import { assertMetaBudgetLimits, getMetaConnectionSummary, getMetaMode, hasExplicitLiveConfirmation, setRemoteMetaAdStatus } from "@/lib/meta-ads";
 
 const env = { ...process.env };
 afterEach(() => { process.env = { ...env }; });
@@ -90,5 +90,14 @@ describe("A/B privacy and Meta guardrails", () => {
   it("never activates a remote ad in sandbox", async () => {
     process.env.META_MODE = "sandbox";
     await expect(setRemoteMetaAdStatus({ campaignId: "1", adSetId: "2", adId: "3" }, "ACTIVE")).rejects.toThrow("Sandbox");
+  });
+
+  it("blocks live activation without confirmation and enforces both budget caps", () => {
+    expect(hasExplicitLiveConfirmation(undefined)).toBe(false);
+    expect(hasExplicitLiveConfirmation("activate-live")).toBe(true);
+    const limits = { maxCampaignDailyBudgetCents: 2_000, maxGlobalDailyBudgetCents: 5_000 };
+    expect(() => assertMetaBudgetLimits(2_001, 0, limits)).toThrow("limit jednej kampane");
+    expect(() => assertMetaBudgetLimits(2_000, 3_001, limits)).toThrow("globálny denný limit");
+    expect(() => assertMetaBudgetLimits(2_000, 3_000, limits)).not.toThrow();
   });
 });

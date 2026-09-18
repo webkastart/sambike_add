@@ -4,9 +4,11 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
   createRemoteMetaAd,
+  assertMetaBudgetLimits,
   deleteRemoteMetaAd,
   fetchMetaAdPreviews,
-  getMetaConnectionSummary,
+  getMetaConnectionSettings,
+  hasExplicitLiveConfirmation,
   MetaAdsError,
   setRemoteMetaAdStatus,
   setRemoteMetaAdBudget,
@@ -17,6 +19,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin-auth";
 import { persistMetaAdSync } from "@/lib/meta-sync";
+import { campaignReadiness } from "@/lib/campaign-workflow";
 
 function value(formData: FormData, name: string) {
   return String(formData.get(name) ?? "").trim();
@@ -34,7 +37,7 @@ function optionalDate(formData: FormData, name: string) {
   return parsed;
 }
 
-function parseDraftInput(formData: FormData): MetaAdDraftInput {
+async function parseDraftInput(formData: FormData): Promise<MetaAdDraftInput> {
   const primaryText = value(formData, "primaryText").slice(0, 1000);
   const headline = value(formData, "adHeadline").slice(0, 255);
   const description = value(formData, "adDescription").slice(0, 255);
@@ -49,7 +52,7 @@ function parseDraftInput(formData: FormData): MetaAdDraftInput {
   const endsAt = optionalDate(formData, "endsAt");
 
   if (!primaryText || !headline) throw new MetaAdsError("Doplňte hlavný text a nadpis reklamy.");
-  const maxBudget = getMetaConnectionSummary().maxCampaignDailyBudgetCents;
+  const maxBudget = (await getMetaConnectionSettings()).maxCampaignDailyBudgetCents;
   if (dailyBudgetCents < 500 || dailyBudgetCents > maxBudget) {
     throw new MetaAdsError(`Denný rozpočet musí byť od 5 € do ${(maxBudget / 100).toFixed(2)} €.`);
   }
@@ -90,20 +93,24 @@ function campaignPath(campaignId: string, query: Record<string, string>) {
   return `/admin/kampane/${campaignId}?${params}`;
 }
 
+function verificationIsCurrent(verifiedAt: Date) {
+  return Date.now() - verifiedAt.getTime() < 24 * 60 * 60 * 1000;
+}
+
 export async function verifyMetaConnectionAction() {
   await requireAdmin();
   try {
     const result = await verifyMetaConnection();
-    const connection = getMetaConnectionSummary();
+    const connection = await getMetaConnectionSettings();
     await prisma.metaConnectionCheck.upsert({
       where: { id: "default" },
-      create: { id: "default", mode: connection.mode, adAccountId: connection.adAccountId, currency: result.currency || null, accountName: result.accountName, accountStatus: result.accountStatus, timezoneName: result.timezoneName || null, spendCapCents: result.spendCapCents, amountSpentCents: result.amountSpentCents, verifiedAt: new Date() },
-      update: { mode: connection.mode, adAccountId: connection.adAccountId, currency: result.currency || null, accountName: result.accountName, accountStatus: result.accountStatus, timezoneName: result.timezoneName || null, spendCapCents: result.spendCapCents, amountSpentCents: result.amountSpentCents, verifiedAt: new Date() },
+      create: { id: "default", mode: connection.mode, adAccountId: connection.adAccountId, currency: result.currency || null, accountName: result.accountName, accountStatus: result.accountStatus, timezoneName: result.timezoneName || null, spendCapCents: result.spendCapCents, amountSpentCents: result.amountSpentCents, pageAvailable: result.pageAvailable, instagramAvailable: result.instagramAvailable, permissionsOk: result.permissionsOk, datasetAssigned: result.datasetAssigned, verifiedAt: new Date() },
+      update: { mode: connection.mode, adAccountId: connection.adAccountId, currency: result.currency || null, accountName: result.accountName, accountStatus: result.accountStatus, timezoneName: result.timezoneName || null, spendCapCents: result.spendCapCents, amountSpentCents: result.amountSpentCents, pageAvailable: result.pageAvailable, instagramAvailable: result.instagramAvailable, permissionsOk: result.permissionsOk, datasetAssigned: result.datasetAssigned, verifiedAt: new Date() },
     });
   } catch (error) {
-    redirect(`/admin/nastavenia?metaError=${encodeURIComponent(errorMessage(error))}`);
+    redirect(`/admin/spustenie?error=${encodeURIComponent(errorMessage(error))}&section=meta`);
   }
-  redirect("/admin/nastavenia?metaVerified=1");
+  redirect("/admin/spustenie?saved=meta-verified");
 }
 
 export async function createMetaAd(campaignId: string, formData: FormData) {
@@ -111,7 +118,7 @@ export async function createMetaAd(campaignId: string, formData: FormData) {
   let localAdId = "";
 
   try {
-    const input = parseDraftInput(formData);
+    const input = await parseDraftInput(formData);
     const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
       include: { metaAd: true },
@@ -119,12 +126,11 @@ export async function createMetaAd(campaignId: string, formData: FormData) {
     if (!campaign) throw new MetaAdsError("Kampaň už neexistuje.");
     if (campaign.status !== "PUBLISHED") throw new MetaAdsError("Pred vytvorením reklamy publikujte landing page.");
     if (campaign.metaAd?.metaCampaignId) throw new MetaAdsError("Táto kampaň už má vytvorenú Meta reklamu.");
-    const connection = getMetaConnectionSummary();
-    if (input.dailyBudgetCents > connection.maxCampaignDailyBudgetCents) throw new MetaAdsError(`Denný rozpočet prekračuje limit kampane ${(connection.maxCampaignDailyBudgetCents / 100).toFixed(2)} €.`);
+    const connection = await getMetaConnectionSettings();
     const total = await prisma.metaAdCampaign.aggregate({ where: { status: "ACTIVE", campaignId: { not: campaignId } }, _sum: { dailyBudgetCents: true } });
-    if ((total._sum.dailyBudgetCents ?? 0) + input.dailyBudgetCents > connection.maxGlobalDailyBudgetCents) throw new MetaAdsError(`Súčet aktívnych rozpočtov by prekročil globálny limit ${(connection.maxGlobalDailyBudgetCents / 100).toFixed(2)} €.`);
+    assertMetaBudgetLimits(input.dailyBudgetCents, total._sum.dailyBudgetCents ?? 0, connection);
     const verified = await prisma.metaConnectionCheck.findUnique({ where: { id: "default" } });
-    if (connection.mode === "live" && (!verified || verified.mode !== connection.mode || verified.adAccountId !== connection.adAccountId)) throw new MetaAdsError("Po zmene režimu alebo účtu najprv znovu overte Meta spojenie v nastaveniach.");
+    if (connection.mode === "live" && (!verified || verified.mode !== connection.mode || verified.adAccountId !== connection.adAccountId || !verificationIsCurrent(verified.verifiedAt))) throw new MetaAdsError("Meta spojenie musí byť overené pre aktuálny režim a účet počas posledných 24 hodín.");
     if (connection.mode === "live" && verified?.currency !== "EUR") throw new MetaAdsError(`Reklamný účet používa menu ${verified?.currency || "neznámu"}; povolená je iba EUR.`);
 
     const destinationUrl = new URL(`/kampan/${campaign.slug}`, process.env.APP_URL || "http://localhost:3000").toString();
@@ -211,25 +217,29 @@ function remoteIds(ad: {
   return { campaignId: ad.metaCampaignId, adSetId: ad.metaAdSetId, adId: ad.metaAdId };
 }
 
-export async function setMetaAdStatus(campaignId: string, status: "ACTIVE" | "PAUSED") {
+export async function setMetaAdStatus(campaignId: string, status: "ACTIVE" | "PAUSED", confirmation?: FormData) {
   const { actor } = await requireAdmin();
   try {
     const ad = await prisma.metaAdCampaign.findUniqueOrThrow({
       where: { campaignId },
-      include: { campaign: { select: { status: true } } },
+      include: { campaign: { include: { galleryItems: { orderBy: { sortOrder: "asc" } } } } },
     });
-    const connection = getMetaConnectionSummary();
+    const connection = await getMetaConnectionSettings();
     if (status === "ACTIVE" && ad.campaign.status !== "PUBLISHED") {
       throw new MetaAdsError("Najprv publikujte landing page.");
     }
     if (status === "ACTIVE") {
+      if (!hasExplicitLiveConfirmation(confirmation?.get("liveConfirmation"))) throw new MetaAdsError("Live spustenie vyžaduje výslovné potvrdenie.");
       if (connection.mode !== "live" || ad.mode !== "live") throw new MetaAdsError("Sandbox reklamu nemožno aktivovať. Prepnite vedome na live, overte spojenie a vytvorte live koncept.");
+      const duplicateSlug = await prisma.campaign.count({ where: { slug: ad.campaign.slug, NOT: { id: ad.campaign.id } } });
+      const readiness = campaignReadiness(ad.campaign, { slugUnique: duplicateSlug === 0, appUrl: process.env.APP_URL, requireProductionUrl: true });
+      if (!readiness.ready) throw new MetaAdsError(`Landing page už nespĺňa povinné kontroly: ${readiness.items.filter((item) => item.level === "required" && !item.ready).map((item) => item.label).join(", ")}.`);
       const verified = await prisma.metaConnectionCheck.findUnique({ where: { id: "default" } });
-      if (!verified || verified.mode !== "live" || verified.adAccountId !== connection.adAccountId) throw new MetaAdsError("Live spojenie nebolo po zmene režimu overené.");
+      if (!verified || verified.mode !== "live" || verified.adAccountId !== connection.adAccountId || !verificationIsCurrent(verified.verifiedAt)) throw new MetaAdsError("Live spojenie nebolo overené počas posledných 24 hodín.");
       if (verified.currency !== "EUR" || ad.currency !== "EUR") throw new MetaAdsError("Aktivácia je povolená iba pre účet a reklamu v EUR.");
-      if (ad.dailyBudgetCents > connection.maxCampaignDailyBudgetCents) throw new MetaAdsError("Rozpočet prekračuje limit jednej kampane.");
+      if (verified.accountStatus !== 1 || !verified.pageAvailable || !verified.permissionsOk) throw new MetaAdsError("Meta účet, Facebook stránka alebo oprávnenie ads_management nie sú overené.");
       const activeBudgets = await prisma.metaAdCampaign.aggregate({ where: { status: "ACTIVE", id: { not: ad.id } }, _sum: { dailyBudgetCents: true } });
-      if ((activeBudgets._sum.dailyBudgetCents ?? 0) + ad.dailyBudgetCents > connection.maxGlobalDailyBudgetCents) throw new MetaAdsError("Aktivácia by prekročila globálny denný limit.");
+      assertMetaBudgetLimits(ad.dailyBudgetCents, activeBudgets._sum.dailyBudgetCents ?? 0, connection);
     }
     if (ad.mode === "sandbox" && status === "PAUSED") {
       await prisma.metaAdCampaign.update({ where: { id: ad.id }, data: { status: "PAUSED", effectiveStatus: "SANDBOX_PAUSED", lastError: null } });
@@ -272,10 +282,10 @@ export async function updateMetaAdBudget(campaignId: string, formData: FormData)
   try {
     const ad = await prisma.metaAdCampaign.findUniqueOrThrow({ where: { campaignId } });
     const cents = Math.round(numberValue(formData, "dailyBudget") * 100);
-    const connection = getMetaConnectionSummary();
-    if (!Number.isSafeInteger(cents) || cents < 500 || cents > connection.maxCampaignDailyBudgetCents) throw new MetaAdsError("Rozpočet je mimo povoleného limitu kampane.");
+    const connection = await getMetaConnectionSettings();
+    if (!Number.isSafeInteger(cents) || cents < 500) throw new MetaAdsError("Rozpočet je mimo povoleného limitu kampane.");
     const others = await prisma.metaAdCampaign.aggregate({ where: { status: "ACTIVE", id: { not: ad.id } }, _sum: { dailyBudgetCents: true } });
-    if ((others._sum.dailyBudgetCents ?? 0) + cents > connection.maxGlobalDailyBudgetCents) throw new MetaAdsError("Rozpočet by prekročil globálny denný limit.");
+    assertMetaBudgetLimits(cents, others._sum.dailyBudgetCents ?? 0, connection);
     if (ad.mode === "live") {
       if (!ad.metaAdSetId) throw new MetaAdsError("Meta ad set nemá vzdialený identifikátor.");
       await setRemoteMetaAdBudget(ad.metaAdSetId, cents);
@@ -316,7 +326,7 @@ export async function emergencyPauseAllMetaAds() {
     }
   }
   revalidatePath("/admin");
-  redirect(`/admin/nastavenia?emergencyPaused=${paused}&emergencyFailed=${failed.length}`);
+  redirect(`/admin/spustenie?saved=emergency-paused&count=${paused}&failed=${failed.length}`);
 }
 
 export async function deleteMetaAd(campaignId: string) {

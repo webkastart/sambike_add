@@ -43,7 +43,7 @@ export function MetaAdSection({
   leadCount: number;
   connection: MetaConnectionSummary;
   createAction: (formData: FormData) => Promise<void>;
-  startAction: () => Promise<void>;
+  startAction: (formData: FormData) => Promise<void>;
   pauseAction: () => Promise<void>;
   syncAction: () => Promise<void>;
   deleteAction: () => Promise<void>;

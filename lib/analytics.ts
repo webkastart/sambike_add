@@ -93,7 +93,21 @@ export function trackEvent(event: AnalyticsEvent, parameters: Record<string, str
     }).catch(() => undefined);
   }
 
+  trackMetaEvent(event, parameters);
+}
+
+export function trackMetaEvent(event: AnalyticsEvent, parameters: Record<string, string> = {}) {
   if (!window.fbq || parseMarketingConsent(document.cookie) !== "granted") return;
+  if (event === "PageView" || event === "Lead") {
+    const identity = parameters.event_id || `${event}:${parameters.campaign_slug || window.location.pathname}`;
+    const key = `${storagePrefix}meta.${identity}`;
+    try {
+      if (window.sessionStorage.getItem(key)) return;
+      window.sessionStorage.setItem(key, "sent");
+    } catch {
+      // Deduplikácia v rámci komponentu zostáva aktívna aj bez sessionStorage.
+    }
+  }
   if (event === "PageView" || event === "Lead") {
     window.fbq("track", event, parameters);
   } else {

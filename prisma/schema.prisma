@@ -278,6 +278,10 @@ model MetaConnectionCheck {
   timezoneName String?
   spendCapCents Int?
   amountSpentCents Int?
+  pageAvailable Boolean @default(false)
+  instagramAvailable Boolean @default(false)
+  permissionsOk Boolean @default(false)
+  datasetAssigned Boolean?
   verifiedAt  DateTime
   updatedAt   DateTime @updatedAt
 }
@@ -393,9 +397,36 @@ model LeadNotificationRecipient {
 }
 
 model AppSetting {
-  id               String   @id
-  metaPixelEnabled Boolean  @default(false)
-  updatedAt        DateTime @updatedAt
+  id                              String   @id
+  metaPixelEnabled                Boolean  @default(false)
+  metaPixelId                     String?
+  privacyOperatorName             String?
+  privacyOperatorAddress          String?
+  privacyContactEmail             String?
+  privacyPolicyVersion            String?
+  leadRetentionDays               Int?
+  metaMaxCampaignDailyBudgetCents Int?
+  metaMaxGlobalDailyBudgetCents   Int?
+  updatedAt                       DateTime @updatedAt
+}
+
+model OperationalSettingAudit {
+  id            String   @id @default(cuid())
+  actor         String
+  changedFields Json
+  createdAt     DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model CronHealth {
+  id            String   @id
+  lastAttemptAt DateTime?
+  lastSuccessAt DateTime?
+  lastFailureAt DateTime?
+  lastError     String?
+  lastResult    Json?
+  updatedAt     DateTime @updatedAt
 }
 
 model EmailOutbox {

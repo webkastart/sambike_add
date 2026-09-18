@@ -27,6 +27,7 @@ Hlavné adresy:
 
 - administrácia: [http://localhost:3000/admin](http://localhost:3000/admin)
 - záujemcovia: [http://localhost:3000/admin/leady](http://localhost:3000/admin/leady)
+- centrum spustenia: [http://localhost:3000/admin/spustenie](http://localhost:3000/admin/spustenie)
 - demo landing page: [http://localhost:3000/kampan/servis](http://localhost:3000/kampan/servis)
 
 ## E-mailové notifikácie cez Resend
@@ -41,7 +42,7 @@ Ak záujemca vo formulári uvedie e-mail, dostane naň samostatné potvrdenie s
 rekapituláciou požiadavky. Toto potvrdenie sa posiela nezávisle od zapnutých
 admin príjemcov.
 
-Do lokálneho `.env` a do environment premenných hostingu nastavte:
+Do lokálneho `.env` a do environment premenných hostingu nastavte tajomstvá a prvotné fallbacky:
 
 ```bash
 RESEND_API_KEY="re_..."
@@ -53,7 +54,8 @@ NEXT_PUBLIC_META_PIXEL_ID="123456789012345"
 
 Adresy v `LEAD_NOTIFICATION_EMAILS` oddeľte čiarkou. Notifikácia príde na každú
 aktívnu adresu. Po nasadení sa jednotliví príjemcovia zapínajú a vypínajú v
-`Administrácia → Nastavenia`, bez ďalšej zmeny env premenných. Pôvodná premenná
+`Administrácia → Centrum spustenia`, bez ďalšej zmeny env premenných. Databázový
+zoznam má po prvom uložení prednosť. Pôvodná premenná
 `LEAD_NOTIFICATION_EMAIL` s jednou adresou zostáva podporovaná.
 
 Pre prvý test môžete ako odosielateľa použiť
@@ -119,7 +121,7 @@ META_DEFAULT_LONGITUDE="20.5615"
 `META_APP_SECRET` je tiež voliteľný, ale odporúčaný, pretože serverové volania
 podpisuje pomocou `appsecret_proof`. `APP_URL` musí byť verejná HTTPS adresa –
 Meta potrebuje načítať landing page aj obrázok reklamy. Po nastavení použite
-`Administrácia → Nastavenia → Meta reklamy → Overiť spojenie s Meta`.
+`Administrácia → Centrum spustenia → Meta Business → Overiť Meta spojenie`.
 
 Token ani app secret nikdy nepoužívajú prefix `NEXT_PUBLIC_` a neposielajú
 sa do prehliadača.
@@ -129,8 +131,30 @@ pozastavený koncept a nikdy nevytvorí ani nespustí reálnu reklamu. Pre live
 režim treba vedome nastaviť `META_MODE="live"`, limity
 `META_MAX_CAMPAIGN_DAILY_BUDGET_CENTS` a `META_MAX_GLOBAL_DAILY_BUDGET_CENTS`
 a následne v administrácii znovu overiť konkrétny účet. Aktivácia vyžaduje EUR,
-publikovanú landing page a explicitné potvrdenie. Karty a fakturácia zostávajú
+publikovanú landing page, čerstvé overenie nie staršie ako 24 hodín a explicitné
+potvrdenie. Limity možno následne meniť ako netajné hodnoty v Centre spustenia;
+databázové hodnoty majú prednosť pred env fallbackom a server ich vynucuje pri
+vytvorení, zmene rozpočtu aj aktivácii. Karty a fakturácia zostávajú
 výhradne v Meta Ads Manageri.
+
+## Centrum spustenia
+
+`/admin/spustenie` zjednocuje funkčné kontroly kampane, GDPR, formulára,
+EmailOutboxu, Meta Pixelu, Meta Business a infraštruktúry. Bez úpravy kódu sa
+tu spravujú netajné firemné/GDPR údaje, príjemcovia, verejné Pixel/Dataset ID a
+rozpočtové limity. Zmeny sa auditujú iba zoznamom názvov polí; hodnoty ani
+tajomstvá sa do auditu nekopírujú.
+
+Tajomstvá (`*_SECRET`, API tokeny, databázové pripojenie, R2 a Sentry token)
+zostávajú výhradne v hostingu. Centrum zobrazuje iba ich stav. Pixel ID,
+`PRIVACY_*`, `LEAD_RETENTION_DAYS`, príjemcovia a rozpočtové env premenné sú
+fallbacky pre prvé nasadenie; platná databázová hodnota má prednosť.
+
+Test leadu vytvorí syntetický záznam označený `TEST` a EmailOutbox v jednej
+autorizovanej admin ceste. Verejný formulár tým nezíska žiadny bypass. Testovací
+e-mail aj retry používajú existujúci EmailOutbox. TEST lead možno v jeho detaile
+anonymizovať. Každý autorizovaný cron zapisuje posledný pokus, úspech alebo
+zlyhanie do `CronHealth`; centrum upozorní na chýbajúci alebo zastaraný beh.
 
 Synchronizácia ukladá aj denné Meta spend, impressions, clicks a Meta leady.
 Manuálne tlačidlo na detaile kampane zostáva dostupné. Pre pravidelný import
@@ -196,8 +220,8 @@ overujú session aj na serveri.
 Verejný formulár používa Zod validáciu, podpísaný časový token, honeypot,
 PostgreSQL rate limit, deduplikáciu a Cloudflare Turnstile. Turnstile môže byť
 lokálne vypnutý, ale v produkcii musia byť nastavené oba `TURNSTILE_*` kľúče.
-Retenciu určuje `LEAD_RETENTION_DAYS`; prevádzkovateľ musí vyplniť všetky
-`PRIVACY_*` hodnoty. Meta Pixel sa načíta iba po marketingovom súhlase, ktorý je
+Retenciu a údaje prevádzkovateľa spravuje Centrum spustenia; príslušné env
+premenné zostávajú fallbackom. Meta Pixel sa načíta iba po marketingovom súhlase, ktorý je
 možné na landing page zmeniť.
 
 ## CRM a interný funnel

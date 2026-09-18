@@ -33,13 +33,19 @@ describe("Meta Pixel settings", () => {
 
   it("stays disabled until both the ID and database toggle are present", async () => {
     process.env.NEXT_PUBLIC_META_PIXEL_ID = "123456789012345";
-    expect(await getMetaPixelSettings()).toEqual({ configured: true, enabled: false, pixelId: "123456789012345" });
+    expect(await getMetaPixelSettings()).toEqual({ configured: true, enabled: false, pixelId: "123456789012345", source: "environment" });
 
     mocks.findUnique.mockResolvedValueOnce({ id: "default", metaPixelEnabled: true });
     expect((await getMetaPixelSettings()).enabled).toBe(true);
 
     delete process.env.NEXT_PUBLIC_META_PIXEL_ID;
-    expect(await getMetaPixelSettings()).toEqual({ configured: false, enabled: false, pixelId: null });
+    expect(await getMetaPixelSettings()).toEqual({ configured: false, enabled: false, pixelId: null, source: "missing" });
+  });
+
+  it("prefers a runtime database ID over the environment fallback", async () => {
+    process.env.NEXT_PUBLIC_META_PIXEL_ID = "111111";
+    mocks.findUnique.mockResolvedValueOnce({ id: "default", metaPixelId: "222222", metaPixelEnabled: true });
+    expect(await getMetaPixelSettings()).toEqual({ configured: true, enabled: true, pixelId: "222222", source: "database" });
   });
 
   it("persists the global toggle in the singleton settings row", async () => {

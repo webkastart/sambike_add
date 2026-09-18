@@ -2,7 +2,7 @@
 
 import Script from "next/script";
 import { useEffect, useState } from "react";
-import { readAttribution, trackEvent } from "@/lib/analytics";
+import { readAttribution, trackEvent, trackMetaEvent } from "@/lib/analytics";
 import { marketingConsentCookie, parseMarketingConsent, type MarketingConsent } from "@/lib/consent";
 
 export function CampaignTracking({ campaignSlug, pixelId, variant = "A" }: { campaignSlug: string; pixelId?: string; variant?: "A" | "B" }) {
@@ -14,7 +14,7 @@ export function CampaignTracking({ campaignSlug, pixelId, variant = "A" }: { cam
     readAttribution(campaignSlug);
 
     const pageViewTimer = window.setTimeout(() => {
-      trackEvent("PageView", { campaign_slug: campaignSlug, variant });
+      trackEvent("PageView", { campaign_slug: campaignSlug, variant, event_id: `page:${campaignSlug}:${variant}` });
     }, 0);
 
     const handleClick = (event: MouseEvent) => {
@@ -32,6 +32,12 @@ export function CampaignTracking({ campaignSlug, pixelId, variant = "A" }: { cam
     };
   }, [campaignSlug, variant]);
 
+  useEffect(() => {
+    if (!pixelId || consent !== "granted") return;
+    const timer = window.setTimeout(() => trackMetaEvent("PageView", { campaign_slug: campaignSlug, variant, event_id: `page:${campaignSlug}:${variant}` }), 0);
+    return () => window.clearTimeout(timer);
+  }, [campaignSlug, consent, pixelId, variant]);
+
   const chooseConsent = (value: Exclude<MarketingConsent, null>) => {
     const wasGranted = consent === "granted";
     document.cookie = marketingConsentCookie(value, window.location.protocol === "https:");
@@ -47,7 +53,7 @@ export function CampaignTracking({ campaignSlug, pixelId, variant = "A" }: { cam
     <>
       {pixelId && consent === "granted" && (
         <Script id="meta-pixel" strategy="afterInteractive">
-          {`!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init',${JSON.stringify(pixelId)});fbq('track','PageView');`}
+          {`!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init',${JSON.stringify(pixelId)});`}
         </Script>
       )}
       {pixelId && (consent === null || preferencesOpen) && (
