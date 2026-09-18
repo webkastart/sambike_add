@@ -32,6 +32,7 @@ import {
   sectionContentString,
   type EditableCampaignSection,
 } from "@/lib/campaign-sections";
+import { getCampaignMediaLibrary } from "@/lib/campaign-media-library";
 import {
   canTransitionCampaign,
   campaignReadiness,
@@ -242,6 +243,7 @@ async function uploadedCampaignMedia(formData: FormData, errorPath: string, gall
       cleanupUrls.add(item.mediaUrl);
     }
 
+    let mediaLibraryByUrl: Map<string, Awaited<ReturnType<typeof getCampaignMediaLibrary>>[number]> | null = null;
     for (const [fieldName, shouldCleanup] of [["galleryLibraryMedia", false], ["galleryUploadedMedia", true]] as const) {
       for (const value of formData.getAll(fieldName)) {
         const input = preparedMedia(value);
@@ -257,10 +259,20 @@ async function uploadedCampaignMedia(formData: FormData, errorPath: string, gall
           );
         }
 
-        const item = await validateUploadedCampaignMedia(
-          input.mediaUrl,
-          input.mediaType as CampaignGalleryMediaType,
-        );
+        const requestedMediaType = input.mediaType as CampaignGalleryMediaType;
+        let item: { mediaType: CampaignGalleryMediaType; mediaUrl: string };
+        if (fieldName === "galleryLibraryMedia") {
+          mediaLibraryByUrl ??= new Map((await getCampaignMediaLibrary()).map((entry) => [entry.mediaUrl, entry]));
+          const libraryItem = mediaLibraryByUrl.get(input.mediaUrl);
+          if (!libraryItem || libraryItem.mediaType !== requestedMediaType) {
+            throw new CampaignMediaError("Vybrané médium už nie je dostupné v knižnici.");
+          }
+          item = input.mediaUrl.startsWith("/uploads/")
+            ? await validateUploadedCampaignMedia(input.mediaUrl, requestedMediaType)
+            : { mediaUrl: libraryItem.mediaUrl, mediaType: libraryItem.mediaType };
+        } else {
+          item = await validateUploadedCampaignMedia(input.mediaUrl, requestedMediaType);
+        }
         galleryItems.push({
           mediaType: item.mediaType,
           mediaUrl: item.mediaUrl,

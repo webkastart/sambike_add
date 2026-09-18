@@ -90,7 +90,7 @@ export function CampaignMediaLibraryPicker({
           <header className="flex items-start justify-between gap-5 border-b border-[var(--line)] px-5 py-5 sm:px-7">
             <div>
               <h2 id={titleId} className="text-xl font-semibold">Knižnica médií</h2>
-              <p className="mt-1 text-sm text-[#737c75]">Už nahrané súbory môžete použiť znova bez ďalšieho nahrávania.</p>
+              <p className="mt-1 text-sm text-[#737c75]">Všetky médiá použité v kampaniach môžete použiť znova bez ďalšieho nahrávania.</p>
             </div>
             <button type="button" onClick={() => dialogRef.current?.close()} className="inline-flex size-9 shrink-0 items-center justify-center rounded-full hover:bg-[#f0f2ef]" aria-label="Zavrieť knižnicu médií"><X size={18} /></button>
           </header>

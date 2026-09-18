@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { loginAdmin } from "@/app/auth-actions";
+import { Logo } from "@/components/logo";
 import { adminAuthConfigured, isAdminAuthenticated } from "@/lib/admin-auth";
 import { safeAdminReturnTo } from "@/lib/session-core";
 
@@ -15,8 +16,8 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   return (
     <main className="mx-auto flex min-h-screen max-w-sm items-center px-5">
       <form action={loginAdmin} className="w-full">
-        <p className="text-xs font-semibold uppercase tracking-[.16em] text-[#7c867e]">SAMBIKE</p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-[-.035em]">Prihlásenie</h1>
+        <Logo href="/prihlasenie" stacked />
+        <h1 className="mt-6 text-3xl font-semibold tracking-[-.035em]">Prihlásenie</h1>
         <p className="mt-2 text-sm leading-6 text-[#737c75]">Interná administrácia kampaní a leadov.</p>
         <input type="hidden" name="next" value={next} />
         <label className="mt-8 block">

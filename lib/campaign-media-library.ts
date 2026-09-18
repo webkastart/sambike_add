@@ -5,18 +5,30 @@ import type { CampaignMediaLibraryItem } from "@/lib/campaign-media-library-type
 
 type LibraryEntry = CampaignMediaLibraryItem & { lastUsedTimestamp: number };
 
-function uploadedMediaUrl(value: unknown): value is string {
-  return typeof value === "string" && value.startsWith("/uploads/");
+function campaignMediaUrl(value: unknown): value is string {
+  if (typeof value !== "string" || !value.trim()) return false;
+  if (value.startsWith("/") && !value.startsWith("//") && !value.includes("\\")) return true;
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "https:" || parsed.protocol === "http:";
+  } catch {
+    return false;
+  }
 }
 
 function contentUrl(content: unknown, key: string) {
   if (!content || typeof content !== "object" || Array.isArray(content)) return null;
   const value = (content as Record<string, unknown>)[key];
-  return uploadedMediaUrl(value) ? value : null;
+  return campaignMediaUrl(value) ? value : null;
 }
 
 function inferredMediaType(mediaUrl: string): "IMAGE" | "VIDEO" {
-  return mediaUrl.toLowerCase().endsWith(".mp4") ? "VIDEO" : "IMAGE";
+  try {
+    const pathname = new URL(mediaUrl, "https://sambike.invalid").pathname;
+    return pathname.toLowerCase().endsWith(".mp4") ? "VIDEO" : "IMAGE";
+  } catch {
+    return "IMAGE";
+  }
 }
 
 export async function getCampaignMediaLibrary(currentCampaignId?: string): Promise<CampaignMediaLibraryItem[]> {
@@ -50,7 +62,7 @@ export async function getCampaignMediaLibrary(currentCampaignId?: string): Promi
     label?: string | null;
     usedAt: Date;
   }) {
-    if (!uploadedMediaUrl(input.mediaUrl)) return;
+    if (!campaignMediaUrl(input.mediaUrl)) return;
     const timestamp = input.usedAt.getTime();
     const current = entries.get(input.mediaUrl);
     if (current) {
@@ -95,11 +107,12 @@ export async function getCampaignMediaLibrary(currentCampaignId?: string): Promi
       campaign.galleryImage3Url,
       campaign.ogImageUrl,
     ]) {
-      add({ mediaUrl, campaignId: campaign.id, campaignName: campaign.name, usedAt: campaign.updatedAt });
+      add({ mediaUrl, mediaType: "IMAGE", campaignId: campaign.id, campaignName: campaign.name, usedAt: campaign.updatedAt });
     }
     if (campaign.experiment) {
       add({
         mediaUrl: campaign.experiment.variantImageUrl,
+        mediaType: "IMAGE",
         campaignId: campaign.id,
         campaignName: campaign.name,
         usedAt: campaign.experiment.updatedAt,
@@ -109,6 +122,7 @@ export async function getCampaignMediaLibrary(currentCampaignId?: string): Promi
       for (const key of ["imageUrl", "videoUrl"]) {
         add({
           mediaUrl: contentUrl(section.content, key),
+          mediaType: key === "videoUrl" ? "VIDEO" : "IMAGE",
           campaignId: campaign.id,
           campaignName: campaign.name,
           usedAt: section.updatedAt,

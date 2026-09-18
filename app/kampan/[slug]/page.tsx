@@ -6,6 +6,7 @@ import { cookies } from "next/headers";
 import {
   ArrowRight,
   AtSign,
+  Bike,
   Check,
   Clock3,
   Mail,
@@ -43,6 +44,51 @@ const fallbackFaq: FaqItem[] = [
   { question: "Kedy budem poznať termín?", answer: "Po prijatí požiadavky sa vám ozveme na uvedené telefónne číslo a overíme dostupný termín." },
   { question: "Čo mám uviesť do poznámky?", answer: "Napíšte typ bicykla, stručný opis problému a želaný termín." },
 ];
+const serviceBenefitIllustrations = ["service-check", "wrench", "disc-rotor"] as const;
+type ServiceBenefitIllustrationName = (typeof serviceBenefitIllustrations)[number];
+type ServiceIllustrationName =
+  | "chain-lube"
+  | "service-tools"
+  | "helmet"
+  | "chain"
+  | "chain-link"
+  | "crankset"
+  | "tire";
+
+function ServiceIllustration({ name, className = "" }: { name: ServiceIllustrationName; className?: string }) {
+  return (
+    <Image
+      src={`/illustrations/service-classic/${name}.png`}
+      alt=""
+      width={1122}
+      height={876}
+      aria-hidden="true"
+      className={`object-contain ${className}`}
+    />
+  );
+}
+
+function ServiceBenefitIllustration({ name, className = "", size = 48 }: { name: ServiceBenefitIllustrationName; className?: string; size?: number }) {
+  return <Image src={`/illustrations/service-parts-minimal/${name}.png`} alt="" width={size} height={size} aria-hidden="true" className={`object-contain ${className}`} style={{ width: size, height: size }} />;
+}
+
+function BikeCta({ href, label, className = "" }: { href: string; label: string; className?: string }) {
+  return (
+    <a
+      href={href}
+      data-track="cta"
+      className={`group inline-flex min-h-14 items-center gap-3 rounded-full bg-[#221f1f] p-2 pr-3 text-white shadow-[0_14px_30px_rgba(34,31,31,.2)] ring-1 ring-black/10 transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_38px_rgba(34,31,31,.26)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#0971ce]/25 active:translate-y-0 active:scale-[.98] ${className}`}
+    >
+      <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] shadow-[inset_0_1px_0_rgba(255,255,255,.28)]" aria-hidden="true">
+        <Bike size={21} strokeWidth={2.1} className="transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+      </span>
+      <span className="px-1 text-sm font-bold tracking-[-.01em]">{label}</span>
+      <span className="ml-1 flex size-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-[#74c2ff] transition duration-200 group-hover:translate-x-0.5 group-hover:bg-white group-hover:text-[var(--accent)]" aria-hidden="true">
+        <ArrowRight size={17} strokeWidth={2.2} />
+      </span>
+    </a>
+  );
+}
 
 function textItems(value: unknown): TextItem[] {
   if (!Array.isArray(value)) return [];
@@ -112,6 +158,7 @@ export default async function CampaignLandingPage({ params, searchParams }: Prop
     getMetaPixelSettings(),
   ]);
   if (!campaign) notFound();
+  const showServiceParts = campaign.slug === "servis";
 
   const preview = verifyCampaignPreviewToken(query.preview, campaign.id);
   if (campaign.status !== "PUBLISHED" && !preview) notFound();
@@ -173,37 +220,78 @@ export default async function CampaignLandingPage({ params, searchParams }: Prop
       const sectionCta = useVariantB ? ctaText : sectionContentString(content, "ctaLabel", ctaText);
       const sectionImage = useVariantB ? heroImage : sectionContentString(content, "imageUrl", heroImage);
       return <section data-campaign-hero className="mx-auto grid max-w-[82rem] gap-5 px-4 pb-16 sm:px-8 lg:grid-cols-[1.08fr_.92fr] lg:gap-7 lg:pb-24">
-        <article className="overflow-hidden rounded-[2rem] bg-white sm:rounded-[2.75rem]">
-          <div className="relative aspect-[4/3] min-h-[23rem] bg-[#dfe3dc] sm:aspect-[16/11] lg:h-[clamp(19rem,40svh,26rem)] lg:min-h-0 lg:aspect-auto"><Image src={sectionImage} alt={heroMedia?.caption || sectionHeadline} fill loading="eager" fetchPriority="high" unoptimized={isRemoteMedia(sectionImage)} sizes="(max-width: 1024px) 100vw, 56vw" className="object-cover" />{heroMedia?.caption && <p className="absolute bottom-5 left-5 max-w-[80%] rounded-full bg-white/92 px-4 py-2 text-xs font-medium backdrop-blur-sm sm:bottom-7 sm:left-7">{heroMedia.caption}</p>}</div>
-          <div className="relative -mt-9 rounded-t-[2rem] bg-white px-6 pb-7 pt-8 sm:-mt-12 sm:rounded-t-[2.75rem] sm:px-10 sm:pb-10 sm:pt-11 lg:-mt-9 lg:pb-8 lg:pt-9"><div className="mx-auto mb-7 h-1 w-10 rounded-full bg-[var(--accent)] lg:mb-5" /><p className="text-xs font-bold uppercase tracking-[.18em] text-[var(--accent)]">{eyebrow || campaign.offerType} · Spišská Nová Ves</p><h1 className="mt-4 max-w-2xl text-4xl font-bold leading-[.98] tracking-[-.045em] sm:text-5xl lg:text-[3.55rem]">{sectionHeadline}</h1><p className="mt-5 max-w-2xl text-base leading-relaxed text-[#686b68] sm:text-lg lg:mt-4">{sectionCopy}</p><div className="mt-7 flex flex-wrap items-center gap-4 lg:mt-6"><a href={primaryHref} data-track="cta" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[var(--accent)] px-6 py-3 text-sm font-bold text-white transition hover:bg-[var(--accent-dark)]">{sectionCta}<ArrowRight size={17} /></a><a href={telHref(campaign.phone)} data-track="phone" className="inline-flex min-h-12 items-center gap-2 px-2 text-sm font-semibold hover:text-[var(--accent)]"><Phone size={16} /> Zavolať</a></div></div>
+        <article className="overflow-hidden rounded-[1.75rem] bg-white shadow-[0_24px_70px_rgba(28,38,31,.08)] ring-1 ring-black/[.035] sm:rounded-[2.75rem]">
+          <div className="relative bg-[#dfe3dc]" style={{ height: "clamp(14rem, 62.5vw, 27rem)" }}><Image src={sectionImage} alt={heroMedia?.caption || sectionHeadline} fill loading="eager" fetchPriority="high" unoptimized={isRemoteMedia(sectionImage)} sizes="(max-width: 1024px) 100vw, 56vw" className="object-cover" />{heroMedia?.caption && <p className="absolute left-5 top-5 max-w-[80%] rounded-full bg-white/92 px-4 py-2 text-xs font-medium shadow-sm backdrop-blur-sm sm:left-7 sm:top-7">{heroMedia.caption}</p>}</div>
+          <div className="relative -mt-7 overflow-hidden rounded-t-[1.75rem] bg-white px-6 pb-7 pt-9 sm:-mt-12 sm:rounded-t-[2.75rem] sm:px-10 sm:pb-10 sm:pt-11 lg:-mt-9 lg:pb-9 lg:pt-10">
+            <div className="relative">
+              <p className="text-[.7rem] font-bold uppercase leading-snug tracking-[.18em] text-[var(--accent)]">{eyebrow || campaign.offerType} · Spišská Nová Ves</p>
+              <h1 className="mt-3 max-w-2xl text-[2.15rem] font-bold leading-[.97] tracking-[-.05em] sm:mt-4 sm:text-5xl lg:text-[3.55rem]">{sectionHeadline}</h1>
+              <p className="mt-4 max-w-2xl text-base leading-[1.65] text-[#686b68] sm:mt-5 sm:text-lg lg:mt-4">{sectionCopy}</p>
+              <div className="mt-6 flex flex-col items-start gap-2.5 min-[360px]:flex-row min-[360px]:items-center sm:mt-7 sm:gap-4 lg:mt-6"><BikeCta href={primaryHref} label={sectionCta} /><a href={telHref(campaign.phone)} data-track="phone" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-3 text-sm font-semibold transition hover:bg-[#f2f6f3] hover:text-[var(--accent)]"><Phone size={16} className="text-[var(--accent)]" /> Zavolať</a></div>
+            </div>
+          </div>
         </article>
-        <aside className="flex min-h-[38rem] flex-col rounded-[2rem] bg-white p-6 sm:rounded-[2.75rem] sm:p-9 lg:min-h-0 lg:p-8"><div className="flex items-start justify-between"><Image src="/brand/sambike-mark.png" alt="" width={240} height={220} className="h-auto w-14" /><span className="size-2.5 rounded-full bg-[var(--accent)]" aria-hidden="true" /></div><div className="mx-auto my-10 max-w-sm text-center lg:my-8"><p className="text-xs font-bold uppercase tracking-[.18em] text-[var(--accent)]">Detail kampane</p><h2 className="mt-3 text-3xl font-bold tracking-[-.04em]">Všetko podstatné na jednom mieste.</h2></div><dl className="space-y-3">{detailRows.map(([label, value]) => <div key={label} className="rounded-[1.15rem] bg-[#f4f5f2] px-5 py-4"><dt className="text-xs font-medium text-[#7a7e79]">{label}</dt><dd className="mt-1 text-sm font-semibold leading-relaxed">{value}</dd></div>)}</dl>{processSteps.length > 0 && <ol className="mt-6 space-y-4">{processSteps.slice(0, 3).map((step, index) => <li key={step.title} className="flex gap-3 text-sm"><span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-[#e9f3fc] text-xs font-bold text-[var(--accent)]">{index + 1}</span><span><strong className="block">{step.title}</strong><span className="mt-0.5 block text-[#747774]">{step.text}</span></span></li>)}</ol>}<a href={primaryHref} data-track="cta" className="mt-auto inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[var(--accent)] px-6 py-3 text-sm font-bold text-white transition hover:bg-[var(--accent-dark)]">{sectionCta}<ArrowRight size={17} /></a></aside>
+        <aside className="flex min-h-0 self-start flex-col rounded-[2rem] bg-white p-6 shadow-[0_18px_55px_rgba(28,38,31,.055)] ring-1 ring-black/[.025] sm:rounded-[2.75rem] sm:p-9 lg:p-8">
+          <div className="flex items-start justify-between">
+            <Image src="/brand/sambike-mark.png" alt="" width={240} height={220} className="h-auto w-14" />
+            {showServiceParts ? <ServiceIllustration name="service-tools" className="-mr-1 -mt-2 h-14 w-16 sm:-mr-3 sm:-mt-5 sm:h-28 sm:w-32" /> : <span className="size-2.5 rounded-full bg-[var(--accent)]" aria-hidden="true" />}
+          </div>
+          <div className="mx-auto my-8 max-w-sm text-center lg:my-8"><p className="text-xs font-bold uppercase tracking-[.18em] text-[var(--accent)]">Detail kampane</p><h2 className="mt-3 text-3xl font-bold tracking-[-.04em]">Všetko podstatné na jednom mieste.</h2></div><dl className="space-y-3">{detailRows.map(([label, value]) => <div key={label} className="rounded-[1.15rem] bg-[#f4f5f2] px-5 py-4"><dt className="text-xs font-medium text-[#7a7e79]">{label}</dt><dd className="mt-1 text-sm font-semibold leading-relaxed">{value}</dd></div>)}</dl>{processSteps.length > 0 && <ol className="mt-6 space-y-4">{processSteps.slice(0, 3).map((step, index) => <li key={step.title} className="flex gap-3 text-sm"><span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-[#e9f3fc] text-xs font-bold text-[var(--accent)]">{index + 1}</span><span><strong className="block">{step.title}</strong><span className="mt-0.5 block text-[#747774]">{step.text}</span></span></li>)}</ol>}
+          <BikeCta href={primaryHref} label={sectionCta} className="mt-7 self-center" />
+        </aside>
       </section>;
     }
 
     if (section.type === "BENEFITS") {
       const items = textItems(content.items);
       const shown = items.length ? items : displayedBenefits;
-      return <><section className="mx-auto max-w-[82rem] px-5 pb-16 sm:px-8 lg:pb-24"><div className="grid gap-10 border-y border-[#d8dcd6] py-12 lg:grid-cols-[.72fr_1.28fr] lg:gap-20 lg:py-16"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-[var(--accent)]">{eyebrow || "Prečo Sambike"}</p><h2 className="mt-4 whitespace-pre-line text-4xl font-bold leading-[1.02] tracking-[-.045em]">{heading || "Jemný prístup. Poctivý servis."}</h2>{sectionDescription && <p className="mt-5 max-w-md leading-relaxed text-[#70736f]">{sectionDescription}</p>}</div><ul className="grid gap-8 sm:grid-cols-3">{shown.slice(0, 8).map((item, index) => { const Icon = [Clock3, Wrench, ShieldCheck][index % 3]; return <li key={`${item.title}-${index}`} className="border-t border-[#cfd3cd] pt-5"><Icon size={21} strokeWidth={1.7} className="text-[var(--accent)]" /><h3 className="mt-4 font-bold">{item.title}</h3><p className="mt-2 text-sm leading-relaxed text-[#70736f]">{item.text}</p></li>; })}</ul></div></section>{campaign.trustText && <aside className="mx-auto mb-16 max-w-[82rem] px-5 text-center text-sm font-semibold text-[#5f625f] sm:px-8" aria-label="Dôveryhodnostná informácia">{campaign.trustText}</aside>}</>;
+      return <>
+        <section className="mx-auto max-w-[82rem] px-5 pb-16 sm:px-8 lg:pb-24">
+          <div className="grid gap-8 py-10 lg:grid-cols-[.72fr_1.28fr] lg:gap-20 lg:py-14">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[.18em] text-[var(--accent)]">{eyebrow || "Prečo Sambike"}</p>
+              <h2 className="mt-4 whitespace-pre-line text-4xl font-bold leading-[1.02] tracking-[-.045em]">{heading || "Jemný prístup. Poctivý servis."}</h2>
+              {sectionDescription && <p className="mt-5 max-w-md leading-relaxed text-[#70736f]">{sectionDescription}</p>}
+            </div>
+            <ul className="relative grid gap-7 before:absolute before:bottom-7 before:left-[1.625rem] before:top-7 before:w-px before:bg-gradient-to-b before:from-[#9fd1fa] before:via-[#d4e9fa] before:to-transparent sm:grid-cols-3 sm:gap-8 sm:before:hidden">
+              {shown.slice(0, 8).map((item, index) => {
+                const Icon = [Clock3, Wrench, ShieldCheck][index % 3];
+                return (
+                  <li key={`${item.title}-${index}`} className="relative grid grid-cols-[3.25rem_1fr] gap-4 sm:block">
+                    <span className="relative z-10 flex size-[3.25rem] items-center justify-center rounded-full bg-white shadow-[0_8px_22px_rgba(28,38,31,.07)] ring-1 ring-black/[.045]">
+                      {showServiceParts ? <ServiceBenefitIllustration name={serviceBenefitIllustrations[index % serviceBenefitIllustrations.length]} size={36} /> : <Icon size={21} strokeWidth={1.8} className="text-[var(--accent)]" />}
+                    </span>
+                    <div className="pt-0.5 sm:mt-4 sm:pt-0">
+                      <h3 className="font-bold">{item.title}</h3>
+                      <p className="mt-1.5 text-sm leading-relaxed text-[#70736f]">{item.text}</p>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </section>
+        {campaign.trustText && <aside className="mx-auto mb-16 max-w-[82rem] px-5 text-center text-sm font-semibold text-[#5f625f] sm:px-8" aria-label="Dôveryhodnostná informácia">{campaign.trustText}</aside>}
+      </>;
     }
 
     if (section.type === "OFFER") {
       const image = sectionContentString(content, "imageUrl", offerImage);
       const label = sectionContentString(content, "ctaLabel", ctaText);
-      return <section className="mx-auto grid max-w-[82rem] gap-5 px-4 pb-16 sm:px-8 lg:grid-cols-2 lg:gap-7 lg:pb-24"><figure className="overflow-hidden rounded-[2rem] bg-white sm:rounded-[2.75rem]"><div className="relative aspect-[4/3] bg-[#e2e4e0]"><Image src={image} alt={offerMedia?.caption || heading || campaign.name} fill unoptimized={isRemoteMedia(image)} sizes="(max-width: 1024px) 100vw, 50vw" className="object-cover" /></div>{offerMedia?.caption && <figcaption className="px-6 py-5 text-sm text-[#6f726f] sm:px-8">{offerMedia.caption}</figcaption>}</figure><div className="flex flex-col justify-center rounded-[2rem] bg-white px-6 py-10 sm:rounded-[2.75rem] sm:px-10 lg:px-12"><p className="text-xs font-bold uppercase tracking-[.18em] text-[var(--accent)]">{eyebrow || "Aktuálna ponuka"}</p><h2 className="mt-4 text-4xl font-bold leading-[1.02] tracking-[-.045em] sm:text-5xl">{heading || campaign.name}</h2><p className="mt-5 text-lg leading-relaxed text-[#6f726f]">{sectionDescription || description}</p><div className="mt-8 rounded-[1.15rem] bg-[#f4f5f2] px-5 py-4"><span className="block text-xs text-[#7a7e79]">Cena a podmienky</span><strong className="mt-1 block text-xl">{sectionContentString(content, "priceText", campaign.priceText)}</strong></div><a href={primaryHref} data-track="cta" className="mt-7 inline-flex items-center gap-2 self-start text-sm font-bold text-[var(--accent)]">{label}<ArrowRight size={16} /></a></div></section>;
+      return <section className="mx-auto grid max-w-[82rem] gap-5 px-4 pb-16 sm:px-8 lg:grid-cols-2 lg:gap-7 lg:pb-24"><figure className="overflow-hidden rounded-[2rem] bg-white sm:rounded-[2.75rem]"><div className="relative aspect-[4/3] bg-[#e2e4e0]"><Image src={image} alt={offerMedia?.caption || heading || campaign.name} fill unoptimized={isRemoteMedia(image)} sizes="(max-width: 1024px) 100vw, 50vw" className="object-cover" /></div>{offerMedia?.caption && <figcaption className="px-6 py-5 text-sm text-[#6f726f] sm:px-8">{offerMedia.caption}</figcaption>}</figure><div className="relative flex flex-col justify-center overflow-hidden rounded-[2rem] bg-white px-6 py-10 sm:rounded-[2.75rem] sm:px-10 lg:px-12">{showServiceParts && <ServiceIllustration name="chain" className="pointer-events-none absolute -right-16 -top-8 h-44 w-56 opacity-[0.055]" />}<div className="relative"><p className="text-xs font-bold uppercase tracking-[.18em] text-[var(--accent)]">{eyebrow || "Aktuálna ponuka"}</p><h2 className="mt-4 text-4xl font-bold leading-[1.02] tracking-[-.045em] sm:text-5xl">{heading || campaign.name}</h2><p className="mt-5 text-lg leading-relaxed text-[#6f726f]">{sectionDescription || description}</p><div className="mt-8 rounded-[1.15rem] bg-[#f4f5f2] px-5 py-4"><span className="block text-xs text-[#7a7e79]">Cena a podmienky</span><strong className="mt-1 block text-xl">{sectionContentString(content, "priceText", campaign.priceText)}</strong></div><a href={primaryHref} data-track="cta" className="mt-7 inline-flex items-center gap-2 self-start text-sm font-bold text-[var(--accent)]">{label}<ArrowRight size={16} /></a></div></div></section>;
     }
 
-    if (section.type === "FORM") return <section id="mam-zaujem" data-lead-form-section className="mx-auto max-w-[82rem] scroll-mt-6 px-4 pb-16 sm:px-8 lg:pb-24"><div className="grid gap-12 rounded-[2rem] bg-white px-6 py-10 sm:rounded-[2.75rem] sm:px-10 lg:grid-cols-[.72fr_1.28fr] lg:gap-20 lg:px-12 lg:py-14"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-[var(--accent)]">{eyebrow || "Nezáväzná požiadavka"}</p><h2 className="mt-4 text-4xl font-bold leading-[1.02] tracking-[-.045em] sm:text-5xl">{heading || "Dohodnime si podrobnosti."}</h2><p className="mt-5 max-w-sm leading-relaxed text-[#6f726f]">{sectionDescription || campaign.responseTimeText || "Stačí meno a telefón. Ozveme sa a spolu dohodneme termín aj rozsah."}</p><div className="mt-8 space-y-3 text-sm"><a href={telHref(campaign.phone)} data-track="phone" className="flex items-center gap-3 hover:text-[var(--accent)]"><Phone size={17} className="text-[var(--accent)]" />{campaign.phone}</a><a href={`mailto:${campaign.email}`} className="flex items-center gap-3 hover:text-[var(--accent)]"><Mail size={17} className="text-[var(--accent)]" />{campaign.email}</a><a href={instagramProfileUrl} target="_blank" rel="noreferrer" className="flex items-center gap-3 hover:text-[var(--accent)]"><AtSign size={17} className="text-[var(--accent)]" />@sambike_snv</a>{campaign.address && (campaign.mapUrl ? <a href={campaign.mapUrl} target="_blank" rel="noreferrer" className="flex items-start gap-3 text-[#6f726f] hover:text-[var(--accent)]"><MapPin size={17} className="mt-0.5 shrink-0 text-[var(--accent)]" />{campaign.address}</a> : <p className="flex items-start gap-3 text-[#6f726f]"><MapPin size={17} className="mt-0.5 shrink-0 text-[var(--accent)]" />{campaign.address}</p>)}{campaign.openingHours && <p className="flex items-start gap-3 text-[#6f726f]"><Clock3 size={17} className="mt-0.5 shrink-0 text-[var(--accent)]" />{campaign.openingHours}</p>}</div></div>{preview ? <div className="self-center border-y border-[#d9dcd7] py-10 text-center" role="status"><p className="font-semibold">Formulár je v náhľade bezpečne vypnutý.</p><p className="mt-2 text-sm text-[#6f726f]">Náhľad nevytvorí lead ani neodošle e-mail.</p></div> : <LeadForm campaignId={campaign.id} campaignSlug={campaign.slug} offerType={campaign.offerType} formToken={formToken} turnstileSiteKey={turnstileSiteKey} variant={variant} />}</div></section>;
+    if (section.type === "FORM") return <section id="mam-zaujem" data-lead-form-section className="mx-auto max-w-[82rem] scroll-mt-6 px-4 pb-16 sm:px-8 lg:pb-24"><div className="grid gap-12 rounded-[2rem] bg-white px-6 py-10 sm:rounded-[2.75rem] sm:px-10 lg:grid-cols-[.72fr_1.28fr] lg:gap-20 lg:px-12 lg:py-14"><div className="relative overflow-hidden">{showServiceParts && <ServiceIllustration name="chain-lube" className="pointer-events-none absolute -bottom-2 -right-2 h-20 w-20 opacity-[0.06] sm:-bottom-5 sm:-right-5 sm:h-40 sm:w-36 sm:opacity-[0.07]" />}<div className="relative"><p className="text-xs font-bold uppercase tracking-[.18em] text-[var(--accent)]">{eyebrow || "Nezáväzná požiadavka"}</p><h2 className="mt-4 text-4xl font-bold leading-[1.02] tracking-[-.045em] sm:text-5xl">{heading || "Dohodnime si podrobnosti."}</h2><p className="mt-5 max-w-sm leading-relaxed text-[#6f726f]">{sectionDescription || campaign.responseTimeText || "Stačí meno a telefón. Ozveme sa a spolu dohodneme termín aj rozsah."}</p><div className="mt-8 space-y-3 text-sm"><a href={telHref(campaign.phone)} data-track="phone" className="flex items-center gap-3 hover:text-[var(--accent)]"><Phone size={17} className="text-[var(--accent)]" />{campaign.phone}</a><a href={`mailto:${campaign.email}`} className="flex items-center gap-3 hover:text-[var(--accent)]"><Mail size={17} className="text-[var(--accent)]" />{campaign.email}</a><a href={instagramProfileUrl} target="_blank" rel="noreferrer" className="flex items-center gap-3 hover:text-[var(--accent)]"><AtSign size={17} className="text-[var(--accent)]" />@sambike_snv</a>{campaign.address && (campaign.mapUrl ? <a href={campaign.mapUrl} target="_blank" rel="noreferrer" className="flex items-start gap-3 text-[#6f726f] hover:text-[var(--accent)]"><MapPin size={17} className="mt-0.5 shrink-0 text-[var(--accent)]" />{campaign.address}</a> : <p className="flex items-start gap-3 text-[#6f726f]"><MapPin size={17} className="mt-0.5 shrink-0 text-[var(--accent)]" />{campaign.address}</p>)}{campaign.openingHours && <p className="flex items-start gap-3 text-[#6f726f]"><Clock3 size={17} className="mt-0.5 shrink-0 text-[var(--accent)]" />{campaign.openingHours}</p>}</div></div></div>{preview ? <div className="self-center border-y border-[#d9dcd7] py-10 text-center" role="status"><p className="font-semibold">Formulár je v náhľade bezpečne vypnutý.</p><p className="mt-2 text-sm text-[#6f726f]">Náhľad nevytvorí lead ani neodošle e-mail.</p></div> : <LeadForm campaignId={campaign.id} campaignSlug={campaign.slug} offerType={campaign.offerType} formToken={formToken} turnstileSiteKey={turnstileSiteKey} variant={variant} />}</div></section>;
 
     if (section.type === "GALLERY") {
-      const media = galleryMedia.filter((item) => !item.sectionId || item.sectionId === section.id);
+      const media = galleryMedia;
       return <>{(beforeMedia || afterMedia) && <section className="mx-auto max-w-[82rem] px-4 pb-16 sm:px-8 lg:pb-24"><p className="text-xs font-bold uppercase tracking-[.18em] text-[var(--accent)]">Pred a po</p><h2 className="mt-4 text-4xl font-bold tracking-[-.045em] sm:text-5xl">Rozdiel, ktorý je vidieť.</h2><div className="mt-8 grid gap-5 sm:grid-cols-2">{([[beforeMedia, "Pred servisom"], [afterMedia, "Po servise"]] as const).flatMap(([item, label]) => item ? [<figure key={item.id} className="overflow-hidden rounded-[2rem] bg-white"><div className="relative aspect-[4/3] bg-[#dfe2dd]"><Image src={item.mediaUrl} alt={item.caption || label} fill unoptimized={isRemoteMedia(item.mediaUrl)} sizes="(max-width: 640px) 100vw, 50vw" className="object-cover" /></div><figcaption className="px-6 py-5 text-sm font-semibold">{label}{item.caption ? ` · ${item.caption}` : ""}</figcaption></figure>] : [])}</div></section>}{media.length > 0 && <section className="mx-auto max-w-[82rem] px-4 pb-16 sm:px-8 lg:pb-24"><div className="mb-9 sm:flex sm:items-end sm:justify-between"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-[var(--accent)]">{eyebrow || "Práca zo servisu"}</p><h2 className="mt-4 text-4xl font-bold tracking-[-.045em] sm:text-5xl">{heading || "Detail, ktorý je vidieť."}</h2></div>{sectionDescription && <p className="mt-4 max-w-sm text-sm leading-relaxed text-[#70736f] sm:mt-0">{sectionDescription}</p>}</div><div className="grid gap-5 sm:grid-cols-2">{media.map((item, index) => { const label = item.caption || `${campaign.name} – ${item.mediaType === "VIDEO" ? "video" : "fotografia"} ${index + 1}`; return <figure key={item.id} className={`overflow-hidden rounded-[2rem] bg-white sm:rounded-[2.5rem] ${media.length % 2 === 1 && index === media.length - 1 ? "sm:col-span-2" : ""}`}><div className={`relative bg-[#dfe2dd] ${media.length % 2 === 1 && index === media.length - 1 ? "aspect-[4/3] sm:aspect-[21/9]" : "aspect-[4/3]"}`}>{item.mediaType === "VIDEO" ? <video src={item.mediaUrl} aria-label={label} controls muted playsInline preload="metadata" className="size-full object-cover" /> : <Image src={item.mediaUrl} alt={label} fill unoptimized={isRemoteMedia(item.mediaUrl)} sizes="(max-width: 640px) 100vw, 50vw" className="object-cover" />}</div><figcaption className="flex items-center gap-3 px-6 py-5 text-sm text-[#666a66]"><span className="flex size-6 items-center justify-center rounded-full bg-[#e9f3fc] text-[var(--accent)]"><Check size={13} strokeWidth={2.4} /></span>{item.caption || `${item.mediaType === "VIDEO" ? "Video" : "Zo servisu"} · ${String(index + 1).padStart(2, "0")}`}</figcaption></figure>; })}</div></section>}</>;
     }
 
     if (section.type === "FAQ") {
       const items = faqItems(content.items);
       const shown = items.length ? items : displayedFaq;
-      return <section className="mx-auto grid max-w-[82rem] gap-10 px-4 pb-16 sm:px-8 lg:grid-cols-[.65fr_1.35fr] lg:gap-20 lg:pb-24"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-[var(--accent)]">{eyebrow || "Praktické informácie"}</p><h2 className="mt-4 text-4xl font-bold tracking-[-.045em] sm:text-5xl">{heading || "Časté otázky."}</h2>{sectionDescription && <p className="mt-5 max-w-md leading-relaxed text-[#70736f]">{sectionDescription}</p>}</div><div className="overflow-hidden rounded-[2rem] bg-white px-6 sm:rounded-[2.5rem] sm:px-8">{shown.map((item, index) => <details key={`${item.question}-${index}`} className="group border-b border-[#e0e3de] py-1 last:border-0" open={index === 0}><summary className="flex cursor-pointer list-none items-center justify-between gap-5 py-5 font-bold marker:content-none">{item.question}<span className="text-2xl font-normal text-[var(--accent)] transition group-open:rotate-45" aria-hidden="true">+</span></summary><p className="max-w-2xl pb-6 pr-10 leading-relaxed text-[#6f726f]">{item.answer}</p></details>)}</div></section>;
+      return <section className="mx-auto grid max-w-[82rem] gap-10 px-4 pb-16 sm:px-8 lg:grid-cols-[.65fr_1.35fr] lg:gap-20 lg:pb-24"><div className="relative overflow-hidden">{showServiceParts && <ServiceIllustration name="helmet" className="pointer-events-none absolute -bottom-7 right-0 hidden h-36 w-44 opacity-[0.07] lg:block" />}<div className="relative"><p className="text-xs font-bold uppercase tracking-[.18em] text-[var(--accent)]">{eyebrow || "Praktické informácie"}</p><h2 className="mt-4 text-4xl font-bold tracking-[-.045em] sm:text-5xl">{heading || "Časté otázky."}</h2>{sectionDescription && <p className="mt-5 max-w-md leading-relaxed text-[#70736f]">{sectionDescription}</p>}</div></div><div className="overflow-hidden rounded-[2rem] bg-white px-6 sm:rounded-[2.5rem] sm:px-8">{shown.map((item, index) => <details key={`${item.question}-${index}`} className="group border-b border-[#e0e3de] py-1 last:border-0" open={index === 0}><summary className="flex cursor-pointer list-none items-center justify-between gap-5 py-5 font-bold marker:content-none">{item.question}<span className="text-2xl font-normal text-[var(--accent)] transition group-open:rotate-45" aria-hidden="true">+</span></summary><p className="max-w-2xl pb-6 pr-10 leading-relaxed text-[#6f726f]">{item.answer}</p></details>)}</div></section>;
     }
 
     if (section.type === "TESTIMONIALS") {
@@ -243,11 +331,11 @@ export default async function CampaignLandingPage({ params, searchParams }: Prop
       )}
       {jsonLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />}
 
-      <header className="mx-auto flex h-20 max-w-[82rem] items-center justify-between px-5 sm:h-24 sm:px-8">
-        <Logo href={`/kampan/${campaign.slug}`} />
-        <div className="flex items-center gap-5">
+      <header className="mx-auto flex h-24 max-w-[82rem] items-center justify-between gap-4 px-5 sm:px-8 lg:sticky lg:top-0 lg:z-50 lg:bg-[#f3f4f1]/95 lg:backdrop-blur-sm">
+        <Logo href={`/kampan/${campaign.slug}`} stacked />
+        <div className="flex items-center gap-3 sm:gap-5">
           <a href={instagramProfileUrl} target="_blank" rel="noreferrer" className="hidden text-xs font-semibold tracking-[.08em] text-[#6e706e] transition hover:text-[var(--accent)] sm:inline">@sambike_snv</a>
-          <a href={telHref(campaign.phone)} data-track="phone" className="inline-flex items-center gap-2 text-sm font-semibold transition hover:text-[var(--accent)]">
+          <a href={telHref(campaign.phone)} data-track="phone" className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-full bg-white px-3 text-sm font-semibold shadow-[0_5px_18px_rgba(28,38,31,.06)] ring-1 ring-black/[.035] transition hover:-translate-y-0.5 hover:text-[var(--accent)] sm:bg-transparent sm:px-0 sm:shadow-none sm:ring-0">
             <Phone size={16} className="text-[var(--accent)]" />
             <span className="hidden sm:inline">{campaign.phone}</span><span className="sm:hidden">Zavolať</span>
           </a>
@@ -257,7 +345,7 @@ export default async function CampaignLandingPage({ params, searchParams }: Prop
 
       <footer className="px-5 py-10 sm:px-8">
         <div className="mx-auto flex max-w-[82rem] flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
-          <Logo href={`/kampan/${campaign.slug}`} />
+          <Logo href={`/kampan/${campaign.slug}`} stacked />
           <div className="flex flex-col gap-1 text-xs text-[#747774] sm:text-right">{campaign.address && <span>{campaign.address}</span>}<span>© {new Date().getFullYear()} Sambike · servis bicyklov</span><Link href={campaign.legalUrl} className="underline underline-offset-2">Ochrana osobných údajov</Link>{!preview && <CampaignTracking campaignSlug={campaign.slug} pixelId={pixelId} variant={variant} />}</div>
         </div>
       </footer>
