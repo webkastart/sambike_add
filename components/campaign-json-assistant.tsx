@@ -78,6 +78,7 @@ function updateFormElement(element: HTMLInputElement | HTMLTextAreaElement, valu
 }
 
 export function CampaignJsonAssistant() {
+  const [instruction, setInstruction] = useState("");
   const [json, setJson] = useState("");
   const [message, setMessage] = useState<Message>(null);
 
@@ -85,8 +86,8 @@ export function CampaignJsonAssistant() {
     const form = event.currentTarget.form;
     if (!form) return;
     try {
-      await writeClipboard(campaignAiPrompt(readCampaignJson(form)));
-      setMessage({ kind: "success", text: "Zadanie aj JSON šablóna sú skopírované. Doplňte v AI svoj opis kampane." });
+      await writeClipboard(campaignAiPrompt(readCampaignJson(form), instruction));
+      setMessage({ kind: "success", text: "Opis kampane aj aktuálna JSON šablóna sú skopírované. Vložte zadanie do AI." });
     } catch {
       setMessage({ kind: "error", text: "Kopírovanie zlyhalo. Skontrolujte povolenie schránky v prehliadači a skúste to znova." });
     }
@@ -122,12 +123,26 @@ export function CampaignJsonAssistant() {
       <summary className="cursor-pointer text-lg font-semibold">Vyplniť kampaň pomocou AI a JSON</summary>
       <div className="mt-4 max-w-3xl">
         <p className="text-sm leading-relaxed text-[#737c75]">
-          Skopírujte pripravené zadanie do AI, dopíšte svoj opis kampane a výsledný JSON vložte späť. Vyplnia sa všetky texty, kontakty, SEO údaje aj prepínače; fotografie môžete ponechať alebo potom nahrať.
+          Najprv opíšte kampaň, potom skopírujte pripravené zadanie do AI a výsledný JSON vložte späť. Vyplnia sa všetky texty, kontakty, SEO údaje aj prepínače; fotografie môžete ponechať alebo potom nahrať.
         </p>
-        <div className="mt-4 flex flex-wrap items-center gap-4">
+        <label className="mt-4 block">
+          <span className="text-xs font-semibold uppercase tracking-[.12em] text-[#747d76]">Opis kampane</span>
+          <textarea
+            className="admin-field mt-1 min-h-28 text-sm leading-relaxed"
+            value={instruction}
+            onChange={(event) => {
+              setInstruction(event.target.value);
+              setMessage(null);
+            }}
+            placeholder="Čo propagujete, pre koho je ponuka, aká je cena alebo podmienky a ktoré fakty musí AI zachovať?"
+            maxLength={2000}
+          />
+        </label>
+        <div className="mt-3 flex flex-wrap items-center gap-4">
           <button
-            className="inline-flex items-center gap-2 rounded-[3px] border border-[var(--line)] bg-white px-4 py-2.5 text-sm font-semibold transition hover:border-[#b9c2bb] hover:bg-[#f7f8f7]"
+            className="inline-flex items-center gap-2 rounded-[3px] border border-[var(--line)] bg-white px-4 py-2.5 text-sm font-semibold transition hover:border-[#b9c2bb] hover:bg-[#f7f8f7] disabled:cursor-not-allowed disabled:opacity-45"
             type="button"
+            disabled={!instruction.trim()}
             onClick={copyPrompt}
           >
             <Copy size={16} aria-hidden="true" />

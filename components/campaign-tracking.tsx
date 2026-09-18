@@ -50,7 +50,7 @@ export function CampaignTracking({ campaignSlug, pixelId, variant = "A" }: { cam
           {`!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init',${JSON.stringify(pixelId)});fbq('track','PageView');`}
         </Script>
       )}
-      {(consent === null || preferencesOpen) && (
+      {pixelId && (consent === null || preferencesOpen) && (
         <aside className="fixed inset-x-3 bottom-3 z-[70] mx-auto max-w-2xl rounded-lg bg-[var(--ink)] p-4 text-sm text-white shadow-xl" aria-label="Nastavenie analytických cookies">
           <p className="leading-6">Nevyhnutné funkcie a základná atribúcia fungujú bez marketingových cookies. Meta Pixel zapneme iba s vaším súhlasom. <a href="/ochrana-osobnych-udajov" className="underline">Viac informácií</a></p>
           <div className="mt-3 flex flex-wrap gap-3">
@@ -59,7 +59,7 @@ export function CampaignTracking({ campaignSlug, pixelId, variant = "A" }: { cam
           </div>
         </aside>
       )}
-      {consent !== null && !preferencesOpen && (
+      {pixelId && consent !== null && !preferencesOpen && (
         <button type="button" onClick={() => setPreferencesOpen(true)} className="self-start underline underline-offset-2 transition hover:text-[var(--ink)] sm:self-end">
           Nastavenie cookies
         </button>

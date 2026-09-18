@@ -121,6 +121,16 @@ export default async function EditCampaignPage({
   const variantB = variantMetric("B");
   const currentSnapshot = publicationSnapshot(campaign);
   const editableSections = resolveCampaignSections(campaign);
+  const conversionRate = safeRate(leadCount, event("PAGE_VIEW"));
+  const performanceMetrics = [
+    ["Zobrazenia", event("PAGE_VIEW")],
+    ["Kliknutia na CTA", event("CTA_CLICK")],
+    ["Začaté formuláre", event("FORM_START")],
+    ["Leady", leadCount],
+    ["Dokončené zákazky", completedCount],
+    ["Návšteva → lead", conversionRate == null ? "—" : `${(conversionRate * 100).toFixed(1)} %`],
+    ["Tržba", completedCount ? `${((revenue._sum.completedValueCents ?? 0) / 100).toLocaleString("sk-SK", { minimumFractionDigits: 2 })} €` : "—"],
+  ] as const;
 
   return (
     <>
@@ -143,14 +153,73 @@ export default async function EditCampaignPage({
       <CampaignActions status={campaign.status} previewHref={previewHref} publishAction={publishAction} readyAction={readyAction} pauseAction={pauseCampaignAction} archiveAction={archiveAction} restoreDraftAction={restoreDraftAction} duplicateAction={duplicateAction} />
 
       <section className="mt-10" aria-labelledby="readiness-title"><div className="flex items-end justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[.14em] text-[#8a938c]">Kontrola pred publikovaním</p><h2 id="readiness-title" className="mt-1 text-xl font-semibold">{readiness.ready ? "Kampaň je pripravená" : "Doplňte povinné údaje"}</h2></div>{readiness.ready && (campaign.status === "READY" || campaign.status === "PAUSED") && <form action={publishAction}><button className="rounded-[3px] bg-[var(--accent-dark)] px-5 py-2.5 text-sm font-semibold text-white">Publikovať landing page</button></form>}</div><ul className="mt-5 grid gap-x-8 gap-y-3 border-y border-[var(--line)] py-5 sm:grid-cols-2">{readiness.items.map((item) => <li key={item.key} className="flex items-start gap-3 text-sm"><span aria-hidden="true" className={item.ready ? "text-[#4e6a37]" : item.level === "required" ? "text-[#a1433e]" : "text-[#9a6b25]"}>{item.ready ? "✓" : item.level === "required" ? "×" : "!"}</span><span><strong className="font-medium">{item.label}</strong><span className="ml-2 text-xs text-[#8a928c]">{item.level === "required" ? "povinné" : "odporúčané"}</span>{item.detail && <span className="mt-1 block break-all text-xs text-[#8a928c]">{item.detail}</span>}</span></li>)}</ul></section>
-      <section className="mt-10 border-y border-[var(--line)] py-8">
-        <div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[.14em] text-[#8a938c]">Posledných 30 dní</p><h2 className="mt-1 text-xl font-semibold">Funnel a obchodný výsledok</h2></div><Link href={`/admin/leady?kampan=${campaign.id}`} className="text-sm font-semibold text-[var(--accent-dark)]">Otvoriť leady kampane →</Link></div>
-        <div className="mt-6 grid grid-cols-2 gap-y-6 sm:grid-cols-4 lg:grid-cols-7">{[
-          ["Zobrazenia / udalosti", event("PAGE_VIEW")], ["CTA", event("CTA_CLICK")], ["Formuláre", event("FORM_START")], ["Leady", leadCount], ["Dokončené", completedCount],
-          ["Konverzia", safeRate(leadCount, event("PAGE_VIEW")) == null ? "—" : `${(safeRate(leadCount, event("PAGE_VIEW"))! * 100).toFixed(1)} %`],
-          ["Tržba", completedCount ? `${((revenue._sum.completedValueCents ?? 0) / 100).toLocaleString("sk-SK", { minimumFractionDigits: 2 })} €` : "—"],
-        ].map(([label, value]) => <div key={label}><p className="text-xl font-semibold">{value}</p><p className="mt-1 text-xs text-[#737c75]">{label}</p></div>)}</div>
-        <div className="mt-8 grid gap-8 lg:grid-cols-3"><div><h3 className="text-sm font-semibold">Zdroje leadov</h3><ul className="mt-3 space-y-2 text-sm">{sources.map((source) => <li key={source.utmSource ?? "direct"} className="flex justify-between"><span>{source.utmSource || "Direct / neznámy"}</span><strong>{source._count._all}</strong></li>)}{sources.length === 0 && <li className="text-[#788179]">Bez dát</li>}</ul></div><div><h3 className="text-sm font-semibold">Posledné leady</h3><ul className="mt-3 space-y-2 text-sm">{recentLeads.map((lead) => <li key={lead.id}><Link className="flex justify-between gap-4 hover:underline" href={`/admin/leady/${lead.id}`}><span>{lead.name} · {attributionSource(lead)}</span><span className="text-xs text-[#8a928c]">{formatDate(lead.createdAt)}</span></Link></li>)}{recentLeads.length === 0 && <li className="text-[#788179]">Bez leadov</li>}</ul></div><div><h3 className="text-sm font-semibold">Meta výsledky</h3>{metaPeriod && metaPeriod._count._all > 0 ? <dl className="mt-3 grid grid-cols-2 gap-3 text-sm"><div><dt className="text-xs text-[#8a928c]">Spend</dt><dd>{((metaPeriod._sum.spendCents ?? 0) / 100).toFixed(2)} €</dd></div><div><dt className="text-xs text-[#8a928c]">Impressions</dt><dd>{metaPeriod._sum.impressions ?? 0}</dd></div><div><dt className="text-xs text-[#8a928c]">Kliknutia</dt><dd>{metaPeriod._sum.clicks ?? 0}</dd></div><div><dt className="text-xs text-[#8a928c]">Meta leady</dt><dd>{metaPeriod._sum.metaLeads ?? 0}</dd></div></dl> : <p className="mt-3 text-sm text-[#788179]">— Denné Meta dáta pre obdobie nie sú k dispozícii.</p>}{campaign.metaAd && <p className={`mt-4 text-xs ${metaStale ? "font-semibold text-[#9a6b25]" : "text-[#737c75]"}`}>{campaign.metaAd.lastSyncedAt ? `Posledná synchronizácia ${formatDate(campaign.metaAd.lastSyncedAt)}${metaStale ? " · dáta môžu byť zastarané" : ""}` : "Meta dáta ešte neboli synchronizované."}</p>}</div></div>
+      <section className="mt-10 border-y border-[var(--line)] py-8" aria-labelledby="performance-title">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[.14em] text-[#8a938c]">Posledných 30 dní</p>
+            <h2 id="performance-title" className="mt-1 text-xl font-semibold">Funnel a obchodný výsledok</h2>
+          </div>
+          <Link href={`/admin/leady?kampan=${campaign.id}`} className="w-fit text-sm font-semibold text-[var(--accent-dark)] hover:underline">Otvoriť leady kampane →</Link>
+        </div>
+
+        <dl className="mt-6 grid grid-cols-2 border-l border-t border-[var(--line)] sm:grid-cols-4 lg:grid-cols-7">
+          {performanceMetrics.map(([label, value]) => (
+            <div key={label} className="flex min-w-0 flex-col border-b border-r border-[var(--line)] px-4 py-4 last:col-span-2 sm:px-5 sm:py-5 lg:last:col-span-1">
+              <dt className="order-2 mt-1.5 text-xs leading-5 text-[#737c75]">{label}</dt>
+              <dd className="order-1 text-2xl font-semibold tracking-[-.02em] tabular-nums">{value}</dd>
+            </div>
+          ))}
+        </dl>
+
+        <div className="mt-9 grid gap-10 lg:grid-cols-[minmax(0,1.55fr)_minmax(17rem,.85fr)] lg:gap-14">
+          <div>
+            <h3 className="text-sm font-semibold">Posledné leady</h3>
+            <ul className="mt-3 divide-y divide-[var(--line)] border-y border-[var(--line)]">
+              {recentLeads.map((lead) => (
+                <li key={lead.id}>
+                  <Link className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4 py-3.5 hover:underline" href={`/admin/leady/${lead.id}`}>
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold">{lead.name}</span>
+                      <span className="mt-1 block break-words text-xs text-[#737c75]">{attributionSource(lead)}</span>
+                    </span>
+                    <time className="whitespace-nowrap pt-0.5 text-xs tabular-nums text-[#8a928c]" dateTime={lead.createdAt.toISOString()}>{formatDate(lead.createdAt)}</time>
+                  </Link>
+                </li>
+              ))}
+              {recentLeads.length === 0 && <li className="py-6 text-sm text-[#788179]">Bez leadov</li>}
+            </ul>
+          </div>
+
+          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-1">
+            <div>
+              <h3 className="text-sm font-semibold">Zdroje leadov</h3>
+              <ul className="mt-3 divide-y divide-[var(--line)] border-y border-[var(--line)] text-sm">
+                {sources.map((source) => (
+                  <li key={source.utmSource ?? "direct"} className="flex items-center justify-between gap-4 py-3">
+                    <span className="min-w-0 break-words text-[#59635c]">{source.utmSource || "Direct / neznámy"}</span>
+                    <strong className="tabular-nums">{source._count._all}</strong>
+                  </li>
+                ))}
+                {sources.length === 0 && <li className="py-3 text-[#788179]">Bez dát</li>}
+              </ul>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-semibold">Meta výsledky</h3>
+              {metaPeriod && metaPeriod._count._all > 0 ? (
+                <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-4 border-y border-[var(--line)] py-4 text-sm">
+                  <div><dt className="text-xs text-[#8a928c]">Spend</dt><dd className="mt-1 font-medium tabular-nums">{((metaPeriod._sum.spendCents ?? 0) / 100).toFixed(2)} €</dd></div>
+                  <div><dt className="text-xs text-[#8a928c]">Impressions</dt><dd className="mt-1 font-medium tabular-nums">{metaPeriod._sum.impressions ?? 0}</dd></div>
+                  <div><dt className="text-xs text-[#8a928c]">Kliknutia</dt><dd className="mt-1 font-medium tabular-nums">{metaPeriod._sum.clicks ?? 0}</dd></div>
+                  <div><dt className="text-xs text-[#8a928c]">Meta leady</dt><dd className="mt-1 font-medium tabular-nums">{metaPeriod._sum.metaLeads ?? 0}</dd></div>
+                </dl>
+              ) : (
+                <p className="mt-3 border-y border-[var(--line)] py-4 text-sm leading-6 text-[#788179]">Denné Meta dáta pre obdobie nie sú k dispozícii.</p>
+              )}
+              {campaign.metaAd && <p className={`mt-3 text-xs leading-5 ${metaStale ? "font-semibold text-[#9a6b25]" : "text-[#737c75]"}`}>{campaign.metaAd.lastSyncedAt ? `Posledná synchronizácia ${formatDate(campaign.metaAd.lastSyncedAt)}${metaStale ? " · dáta môžu byť zastarané" : ""}` : "Meta dáta ešte neboli synchronizované."}</p>}
+            </div>
+          </div>
+        </div>
       </section>
       {campaign.status !== "ARCHIVED" ? <><CampaignContentEditor sections={editableSections} galleryItems={campaign.galleryItems} action={saveSectionsAction} previewHref={previewHref} currentCampaignId={campaign.id} mediaLibrary={mediaLibrary} /><CampaignSettingsForm campaign={campaign} action={updateSettingsAction} mediaLibrary={mediaLibrary} /></> : <p className="mt-10 border-y border-[var(--line)] py-6 text-sm text-[#737c75]">Archivovaná kampaň je iba na čítanie. Leady, metriky, audit a publikované verzie zostávajú dostupné.</p>}
 

@@ -19,6 +19,14 @@ describe("marketing consent", () => {
     expect(await screen.findByText("Povoliť marketing")).toBeTruthy();
   });
 
+  it("does not show marketing controls when Meta Pixel is disabled", async () => {
+    render(<CampaignTracking campaignSlug="servis" />);
+    await waitFor(() => expect(fetch).toHaveBeenCalled());
+    expect(screen.queryByTestId("meta-pixel")).toBeNull();
+    expect(screen.queryByText("Povoliť marketing")).toBeNull();
+    expect(screen.queryByText("Nastavenie cookies")).toBeNull();
+  });
+
   it("loads Meta Pixel only after a stored grant", async () => {
     document.cookie = marketingConsentCookie("granted", false);
     render(<CampaignTracking campaignSlug="servis" pixelId="123456" />);

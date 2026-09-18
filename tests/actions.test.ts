@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   consumeRateLimit: vi.fn(),
   verifyTurnstile: vi.fn(),
   revalidatePath: vi.fn(),
+  configuredMetaPixelId: vi.fn(),
+  setMetaPixelEnabled: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
@@ -18,6 +20,10 @@ vi.mock("@/lib/admin-auth", () => ({ requireAdmin: mocks.requireAdmin }));
 vi.mock("@/lib/email-outbox", () => ({ processEmailOutbox: mocks.processEmailOutbox }));
 vi.mock("@/lib/rate-limit", () => ({ consumeRateLimit: mocks.consumeRateLimit, requestIp: vi.fn().mockResolvedValue("127.0.0.1") }));
 vi.mock("@/lib/turnstile", () => ({ verifyTurnstile: mocks.verifyTurnstile }));
+vi.mock("@/lib/meta-pixel", () => ({
+  configuredMetaPixelId: mocks.configuredMetaPixelId,
+  setMetaPixelEnabled: mocks.setMetaPixelEnabled,
+}));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     campaign: { findUnique: mocks.campaignFindUnique },
@@ -26,7 +32,7 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
-import { changeCampaignStatus, createCampaign, createLead, duplicateCampaign, publishCampaign, scheduleCampaign } from "@/app/actions";
+import { changeCampaignStatus, createCampaign, createLead, duplicateCampaign, publishCampaign, scheduleCampaign, updateMetaPixelSetting } from "@/app/actions";
 
 function leadForm() {
   const form = new FormData();
@@ -56,6 +62,8 @@ describe("server action security and lead submission", () => {
     mocks.processEmailOutbox.mockReset().mockResolvedValue({ claimed: 2 });
     mocks.consumeRateLimit.mockReset().mockResolvedValue(true);
     mocks.verifyTurnstile.mockReset().mockResolvedValue(true);
+    mocks.configuredMetaPixelId.mockReset().mockReturnValue("123456789012345");
+    mocks.setMetaPixelEnabled.mockReset().mockResolvedValue({ id: "default", metaPixelEnabled: true });
   });
 
   it("rejects an admin mutation without a session", async () => {
@@ -70,6 +78,24 @@ describe("server action security and lead submission", () => {
     await expect(changeCampaignStatus("campaign-1", "ARCHIVED")).rejects.toThrow("Neautorizovaný");
     await expect(duplicateCampaign("campaign-1")).rejects.toThrow("Neautorizovaný");
     await expect(scheduleCampaign("campaign-1", new FormData())).rejects.toThrow("Neautorizovaný");
+  });
+
+  it("chráni a ukladá globálny prepínač Meta Pixelu", async () => {
+    const enabled = new FormData();
+    enabled.set("metaPixelEnabled", "on");
+    await expect(updateMetaPixelSetting(enabled)).rejects.toThrow("REDIRECT:/admin/nastavenia?pixelSaved=1");
+    expect(mocks.setMetaPixelEnabled).toHaveBeenCalledWith(true);
+
+    mocks.requireAdmin.mockRejectedValueOnce(new Error("Neautorizovaný prístup."));
+    await expect(updateMetaPixelSetting(enabled)).rejects.toThrow("Neautorizovaný");
+  });
+
+  it("nepovolí zapnúť Meta Pixel bez platného ID", async () => {
+    mocks.configuredMetaPixelId.mockReturnValueOnce(null);
+    const form = new FormData();
+    form.set("metaPixelEnabled", "on");
+    await expect(updateMetaPixelSetting(form)).rejects.toThrow("REDIRECT:/admin/nastavenia?pixelError=missing");
+    expect(mocks.setMetaPixelEnabled).not.toHaveBeenCalled();
   });
 
   it("stores a valid lead and creates outbox records", async () => {

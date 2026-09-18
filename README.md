@@ -64,7 +64,11 @@ zobrazené SPF a DKIM záznamy do DNS a počkajte na stav `Verified`. Potom pou�
 ľubovoľnú adresu na overenej doméne ako `RESEND_FROM_EMAIL`.
 
 `NEXT_PUBLIC_META_PIXEL_ID` je voliteľné. Ak zostane prázdne, landing page funguje
-bez Meta Pixelu; interné udalosti a UTM atribúcia sa naďalej zachytávajú.
+bez Meta Pixelu; interné udalosti a UTM atribúcia sa naďalej zachytávajú. Po
+nastavení ID sa meranie samostatne zapína alebo vypína v
+`Administrácia → Nastavenia → Meta reklamy`. Pred prvým zapnutím zostáva Pixel
+vypnutý a aj po zapnutí sa načíta iba návštevníkom, ktorí povolili marketingové
+cookies.
 
 ## Cloudflare R2 pre fotografie a videá
 

@@ -21,6 +21,7 @@ import { Logo } from "@/components/logo";
 import { telHref } from "@/lib/format";
 import { createLeadFormToken } from "@/lib/lead-protection";
 import { prisma } from "@/lib/prisma";
+import { getMetaPixelSettings } from "@/lib/meta-pixel";
 import { verifyCampaignPreviewToken } from "@/lib/campaign-workflow";
 import { resolveCampaignSections, sectionContentString } from "@/lib/campaign-sections";
 
@@ -103,10 +104,13 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
 
 export default async function CampaignLandingPage({ params, searchParams }: Props) {
   const [{ slug }, query, cookieStore] = await Promise.all([params, searchParams, cookies()]);
-  const campaign = await prisma.campaign.findUnique({
-    where: { slug },
-    include: { galleryItems: { orderBy: { sortOrder: "asc" } }, sections: { orderBy: { position: "asc" } }, experiment: true },
-  });
+  const [campaign, metaPixel] = await Promise.all([
+    prisma.campaign.findUnique({
+      where: { slug },
+      include: { galleryItems: { orderBy: { sortOrder: "asc" } }, sections: { orderBy: { position: "asc" } }, experiment: true },
+    }),
+    getMetaPixelSettings(),
+  ]);
   if (!campaign) notFound();
 
   const preview = verifyCampaignPreviewToken(query.preview, campaign.id);
@@ -138,7 +142,7 @@ export default async function CampaignLandingPage({ params, searchParams }: Prop
   const processSteps = textItems(heroSection?.content.steps ?? campaign.processSteps);
   const faq = faqItems(campaign.faq);
   const displayedFaq = faq.length ? faq : fallbackFaq;
-  const pixelId = /^\d+$/.test(process.env.NEXT_PUBLIC_META_PIXEL_ID?.trim() ?? "") ? process.env.NEXT_PUBLIC_META_PIXEL_ID?.trim() : undefined;
+  const pixelId = metaPixel.enabled ? metaPixel.pixelId ?? undefined : undefined;
   const formToken = createLeadFormToken(campaign.id);
   const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim() || undefined;
   const canonical = campaign.canonicalUrl || (process.env.APP_URL ? new URL(`/kampan/${campaign.slug}`, process.env.APP_URL).toString() : undefined);
@@ -180,7 +184,7 @@ export default async function CampaignLandingPage({ params, searchParams }: Prop
     if (section.type === "BENEFITS") {
       const items = textItems(content.items);
       const shown = items.length ? items : displayedBenefits;
-      return <><section className="mx-auto max-w-[82rem] px-5 pb-16 sm:px-8 lg:pb-24"><div className="grid gap-10 border-y border-[#d8dcd6] py-12 lg:grid-cols-[.72fr_1.28fr] lg:gap-20 lg:py-16"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-[var(--accent)]">{eyebrow || "Prečo Sambike"}</p><h2 className="mt-4 whitespace-pre-line text-4xl font-bold leading-[1.02] tracking-[-.045em]">{heading || "Jemný prístup. Poctivý servis."}</h2></div><ul className="grid gap-8 sm:grid-cols-3">{shown.slice(0, 8).map((item, index) => { const Icon = [Clock3, Wrench, ShieldCheck][index % 3]; return <li key={`${item.title}-${index}`} className="border-t border-[#cfd3cd] pt-5"><Icon size={21} strokeWidth={1.7} className="text-[var(--accent)]" /><h3 className="mt-4 font-bold">{item.title}</h3><p className="mt-2 text-sm leading-relaxed text-[#70736f]">{item.text}</p></li>; })}</ul></div></section>{campaign.trustText && <aside className="mx-auto mb-16 max-w-[82rem] px-5 text-center text-sm font-semibold text-[#5f625f] sm:px-8" aria-label="Dôveryhodnostná informácia">{campaign.trustText}</aside>}</>;
+      return <><section className="mx-auto max-w-[82rem] px-5 pb-16 sm:px-8 lg:pb-24"><div className="grid gap-10 border-y border-[#d8dcd6] py-12 lg:grid-cols-[.72fr_1.28fr] lg:gap-20 lg:py-16"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-[var(--accent)]">{eyebrow || "Prečo Sambike"}</p><h2 className="mt-4 whitespace-pre-line text-4xl font-bold leading-[1.02] tracking-[-.045em]">{heading || "Jemný prístup. Poctivý servis."}</h2>{sectionDescription && <p className="mt-5 max-w-md leading-relaxed text-[#70736f]">{sectionDescription}</p>}</div><ul className="grid gap-8 sm:grid-cols-3">{shown.slice(0, 8).map((item, index) => { const Icon = [Clock3, Wrench, ShieldCheck][index % 3]; return <li key={`${item.title}-${index}`} className="border-t border-[#cfd3cd] pt-5"><Icon size={21} strokeWidth={1.7} className="text-[var(--accent)]" /><h3 className="mt-4 font-bold">{item.title}</h3><p className="mt-2 text-sm leading-relaxed text-[#70736f]">{item.text}</p></li>; })}</ul></div></section>{campaign.trustText && <aside className="mx-auto mb-16 max-w-[82rem] px-5 text-center text-sm font-semibold text-[#5f625f] sm:px-8" aria-label="Dôveryhodnostná informácia">{campaign.trustText}</aside>}</>;
     }
 
     if (section.type === "OFFER") {
@@ -199,13 +203,13 @@ export default async function CampaignLandingPage({ params, searchParams }: Prop
     if (section.type === "FAQ") {
       const items = faqItems(content.items);
       const shown = items.length ? items : displayedFaq;
-      return <section className="mx-auto grid max-w-[82rem] gap-10 px-4 pb-16 sm:px-8 lg:grid-cols-[.65fr_1.35fr] lg:gap-20 lg:pb-24"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-[var(--accent)]">{eyebrow || "Praktické informácie"}</p><h2 className="mt-4 text-4xl font-bold tracking-[-.045em] sm:text-5xl">{heading || "Časté otázky."}</h2></div><div className="overflow-hidden rounded-[2rem] bg-white px-6 sm:rounded-[2.5rem] sm:px-8">{shown.map((item, index) => <details key={`${item.question}-${index}`} className="group border-b border-[#e0e3de] py-1 last:border-0" open={index === 0}><summary className="flex cursor-pointer list-none items-center justify-between gap-5 py-5 font-bold marker:content-none">{item.question}<span className="text-2xl font-normal text-[var(--accent)] transition group-open:rotate-45" aria-hidden="true">+</span></summary><p className="max-w-2xl pb-6 pr-10 leading-relaxed text-[#6f726f]">{item.answer}</p></details>)}</div></section>;
+      return <section className="mx-auto grid max-w-[82rem] gap-10 px-4 pb-16 sm:px-8 lg:grid-cols-[.65fr_1.35fr] lg:gap-20 lg:pb-24"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-[var(--accent)]">{eyebrow || "Praktické informácie"}</p><h2 className="mt-4 text-4xl font-bold tracking-[-.045em] sm:text-5xl">{heading || "Časté otázky."}</h2>{sectionDescription && <p className="mt-5 max-w-md leading-relaxed text-[#70736f]">{sectionDescription}</p>}</div><div className="overflow-hidden rounded-[2rem] bg-white px-6 sm:rounded-[2.5rem] sm:px-8">{shown.map((item, index) => <details key={`${item.question}-${index}`} className="group border-b border-[#e0e3de] py-1 last:border-0" open={index === 0}><summary className="flex cursor-pointer list-none items-center justify-between gap-5 py-5 font-bold marker:content-none">{item.question}<span className="text-2xl font-normal text-[var(--accent)] transition group-open:rotate-45" aria-hidden="true">+</span></summary><p className="max-w-2xl pb-6 pr-10 leading-relaxed text-[#6f726f]">{item.answer}</p></details>)}</div></section>;
     }
 
     if (section.type === "TESTIMONIALS") {
       const items = testimonialItems(content.items);
       if (!items.length) return null;
-      return <section className="mx-auto max-w-[82rem] px-4 pb-16 sm:px-8 lg:pb-24"><p className="text-xs font-bold uppercase tracking-[.18em] text-[var(--accent)]">{eyebrow || "Referencie zákazníkov"}</p>{heading && <h2 className="mt-4 text-4xl font-bold tracking-[-.045em] sm:text-5xl">{heading}</h2>}<ul className="mt-6 grid gap-5 md:grid-cols-2">{items.map((item, index) => <li key={`${item.name}-${index}`} className="rounded-[2rem] bg-white p-7 sm:p-9"><blockquote className="text-lg leading-relaxed text-[#5f625f]">„{item.text}“</blockquote><p className="mt-5 text-sm font-bold">{item.name}</p></li>)}</ul></section>;
+      return <section className="mx-auto max-w-[82rem] px-4 pb-16 sm:px-8 lg:pb-24"><p className="text-xs font-bold uppercase tracking-[.18em] text-[var(--accent)]">{eyebrow || "Referencie zákazníkov"}</p>{heading && <h2 className="mt-4 text-4xl font-bold tracking-[-.045em] sm:text-5xl">{heading}</h2>}{sectionDescription && <p className="mt-5 max-w-2xl leading-relaxed text-[#70736f]">{sectionDescription}</p>}<ul className="mt-6 grid gap-5 md:grid-cols-2">{items.map((item, index) => <li key={`${item.name}-${index}`} className="rounded-[2rem] bg-white p-7 sm:p-9"><blockquote className="text-lg leading-relaxed text-[#5f625f]">„{item.text}“</blockquote><p className="mt-5 text-sm font-bold">{item.name}</p></li>)}</ul></section>;
     }
 
     if (section.type === "CTA") {

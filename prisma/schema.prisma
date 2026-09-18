@@ -392,6 +392,12 @@ model LeadNotificationRecipient {
   updatedAt DateTime @updatedAt
 }
 
+model AppSetting {
+  id               String   @id
+  metaPixelEnabled Boolean  @default(false)
+  updatedAt        DateTime @updatedAt
+}
+
 model EmailOutbox {
   id                String              @id @default(cuid())
   leadId            String

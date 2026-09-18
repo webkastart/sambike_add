@@ -1,0 +1,6 @@
+CREATE TABLE "AppSetting" (
+  "id" TEXT NOT NULL,
+  "metaPixelEnabled" BOOLEAN NOT NULL DEFAULT false,
+  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "AppSetting_pkey" PRIMARY KEY ("id")
+);

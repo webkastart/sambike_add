@@ -28,6 +28,7 @@ Import historickým leadom priradí čas súhlasu podľa `createdAt` a verziu `l
 - V Resend overte odosielaciu doménu a DNS SPF/DKIM, potom nastavte API kľúč, odosielateľa a príjemcov.
 - Volajte `POST /api/email-outbox` s `Authorization: Bearer <CRON_SECRET>` každých 5 minút. Volanie musí používať HTTPS a nesmie logovať token.
 - Ak sa používajú Meta reklamy, volajte `POST /api/cron/meta-sync` rovnakým spôsobom podľa požadovanej frekvencie (napríklad raz za hodinu).
+- Ak sa používa Meta Pixel, nastavte číselné `NEXT_PUBLIC_META_PIXEL_ID`, aplikáciu znovu nasaďte a meranie vedome zapnite v `Administrácia → Nastavenia → Meta reklamy`.
 - Nastavte Sentry DSN; pre sourcemapy nastavte aj auth token, organizáciu a projekt. Overte testovaciu serverovú aj klientsku chybu bez osobných údajov.
 - Overte, že `/admin` bez cookie presmeruje na `/prihlasenie`, odpovede admina majú `no-store` a `noindex`, HSTS sa posiela iba cez produkčné HTTPS.
 

@@ -1,5 +1,6 @@
 import type { Campaign } from "@/generated/prisma/client";
 import { CampaignMediaUrlField } from "@/components/campaign-media-url-field";
+import { CampaignSettingsAiAssistant } from "@/components/campaign-settings-ai-assistant";
 import type { CampaignMediaLibraryItem } from "@/lib/campaign-media-library-types";
 
 type Props = { campaign: Campaign; action: (formData: FormData) => void | Promise<void>; mediaLibrary?: CampaignMediaLibraryItem[] };
@@ -11,6 +12,8 @@ export function CampaignSettingsForm({ campaign, action, mediaLibrary = [] }: Pr
     <summary className="cursor-pointer text-lg font-semibold">Nastavenia kampane a SEO</summary>
     <p className="mt-2 text-sm text-[#737c75]">Kontaktné údaje, adresa stránky a údaje pre vyhľadávače.</p>
     <form action={action} className="mt-7 grid max-w-4xl gap-x-10 gap-y-6 sm:grid-cols-2">
+      <div className="sm:col-span-2"><h3 className="font-semibold">Kampaň a kontakt</h3></div>
+      <div className="sm:col-span-2"><CampaignSettingsAiAssistant sectionType="CAMPAIGN_DETAILS" /></div>
       <label><span className={labelClass}>Interný názov kampane</span><input className="admin-field" name="name" defaultValue={campaign.name} maxLength={120} required /></label>
       <label><span className={labelClass}>Adresa stránky</span><input className="admin-field" name="slug" defaultValue={campaign.slug} maxLength={120} required /></label>
       <label><span className={labelClass}>Telefón</span><input className="admin-field" name="phone" defaultValue={campaign.phone} maxLength={30} required /></label>
@@ -21,6 +24,7 @@ export function CampaignSettingsForm({ campaign, action, mediaLibrary = [] }: Pr
       <label><span className={labelClass}>Adresa prevádzky</span><input className="admin-field" name="address" defaultValue={campaign.address ?? ""} maxLength={300} /></label>
       <label className="sm:col-span-2"><span className={labelClass}>Odkaz na mapu</span><input className="admin-field" type="url" name="mapUrl" defaultValue={campaign.mapUrl ?? ""} maxLength={1000} /></label>
       <div className="sm:col-span-2 mt-2 border-t border-[var(--line)] pt-6"><h3 className="font-semibold">SEO a zdieľanie</h3></div>
+      <div className="sm:col-span-2"><CampaignSettingsAiAssistant sectionType="SEO_SHARING" /></div>
       <label><span className={labelClass}>Názov vo vyhľadávači</span><input className="admin-field" name="seoTitle" defaultValue={campaign.seoTitle ?? campaign.headline} maxLength={70} required /></label>
       <label><span className={labelClass}>Canonical URL</span><input className="admin-field" type="url" name="canonicalUrl" defaultValue={campaign.canonicalUrl ?? ""} maxLength={1000} /></label>
       <label className="sm:col-span-2"><span className={labelClass}>Popis vo vyhľadávači</span><textarea className="admin-field" name="seoDescription" defaultValue={campaign.seoDescription ?? campaign.description} maxLength={180} required /></label>

@@ -2,14 +2,17 @@
 
 import type { CampaignGalleryItem } from "@/generated/prisma/client";
 import {
+  AlertCircle,
   ArrowDown,
   ArrowUp,
+  CheckCircle2,
   Copy,
   Eye,
   GripVertical,
   ImageIcon,
   LayoutList,
   Plus,
+  Sparkles,
   Trash2,
 } from "lucide-react";
 import Link from "next/link";
@@ -19,6 +22,7 @@ import { useFormStatus } from "react-dom";
 import { CampaignGalleryField, type CampaignGalleryFieldHandle } from "@/components/campaign-gallery-field";
 import { CampaignImageField, type CampaignImageFieldHandle } from "@/components/campaign-image-field";
 import { CampaignMediaUrlField } from "@/components/campaign-media-url-field";
+import { campaignSectionAiPrompt, parseCampaignSectionAiJson } from "@/lib/campaign-section-ai";
 import {
   defaultSectionContent,
   type CampaignSectionContent,
@@ -64,6 +68,25 @@ const sectionNames: Record<CampaignSectionTypeValue, string> = {
 
 const singleInstanceTypes = new Set<CampaignSectionTypeValue>(["HERO", "GALLERY", "FORM"]);
 const nonRemovableTypes = new Set<CampaignSectionTypeValue>(["HERO"]);
+
+type AiMessage = { kind: "success" | "error"; text: string } | null;
+
+async function writeClipboard(value: string) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+
+  const fallback = document.createElement("textarea");
+  fallback.value = value;
+  fallback.style.position = "fixed";
+  fallback.style.opacity = "0";
+  document.body.appendChild(fallback);
+  fallback.select();
+  const copied = document.execCommand("copy");
+  fallback.remove();
+  if (!copied) throw new Error("Clipboard is unavailable");
+}
 
 function contentItems(content: CampaignSectionContent) {
   return Array.isArray(content.items) ? content.items.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object")) : [];
@@ -117,6 +140,11 @@ export function CampaignContentEditor({ sections: initialSections, galleryItems,
   const [sections, setSections] = useState(() => initialSections.map((section, position) => ({ ...section, position })));
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingBackup, setEditingBackup] = useState<EditableCampaignSection | null>(null);
+  const [openedSectionIds, setOpenedSectionIds] = useState<Set<string>>(() => new Set());
+  const [aiEditingId, setAiEditingId] = useState<string | null>(null);
+  const [aiInstruction, setAiInstruction] = useState("");
+  const [aiJson, setAiJson] = useState("");
+  const [aiMessage, setAiMessage] = useState<AiMessage>(null);
   const [chooserOpen, setChooserOpen] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [uploadError, setUploadError] = useState("");
@@ -144,13 +172,70 @@ export function CampaignContentEditor({ sections: initialSections, galleryItems,
   function openEditor(section: EditableCampaignSection) {
     setEditingId(section.id);
     setEditingBackup(structuredClone(section));
+    setOpenedSectionIds((current) => new Set(current).add(section.id));
+    setAiEditingId(null);
+    setAiInstruction("");
+    setAiJson("");
+    setAiMessage(null);
     setChooserOpen(false);
   }
 
   function cancelEditor() {
     if (editingBackup) replaceSection(editingBackup.id, () => editingBackup);
+    if (editingBackup) {
+      setOpenedSectionIds((current) => {
+        const next = new Set(current);
+        next.delete(editingBackup.id);
+        return next;
+      });
+    }
     setEditingId(null);
     setEditingBackup(null);
+    setAiEditingId(null);
+    setAiInstruction("");
+    setAiJson("");
+    setAiMessage(null);
+  }
+
+  function finishEditor() {
+    setEditingId(null);
+    setEditingBackup(null);
+    setAiEditingId(null);
+    setAiInstruction("");
+    setAiJson("");
+    setAiMessage(null);
+  }
+
+  async function copyAiPrompt(section: EditableCampaignSection) {
+    try {
+      await writeClipboard(campaignSectionAiPrompt(section, aiInstruction));
+      setAiMessage({ kind: "success", text: "Zadanie s opisom úpravy a aktuálnym JSON sekcie je skopírované. Vložte ho do AI." });
+    } catch {
+      setAiMessage({ kind: "error", text: "Kopírovanie zlyhalo. Skontrolujte povolenie schránky a skúste to znova." });
+    }
+  }
+
+  function openAiEditor(section: EditableCampaignSection) {
+    if (editingId !== section.id) {
+      setEditingId(section.id);
+      setEditingBackup(structuredClone(section));
+      setOpenedSectionIds((current) => new Set(current).add(section.id));
+    }
+    setChooserOpen(false);
+    setAiEditingId(section.id);
+    setAiInstruction("");
+    setAiJson("");
+    setAiMessage(null);
+  }
+
+  function applyAiJson(section: EditableCampaignSection) {
+    const result = parseCampaignSectionAiJson(aiJson, section.type);
+    if (!result.success) {
+      setAiMessage({ kind: "error", text: result.error });
+      return;
+    }
+    replaceSection(section.id, (current) => ({ ...current, content: result.data }));
+    setAiMessage({ kind: "success", text: "Obsah z AI je použitý v sekcii. Skontrolujte ho a potom uložte obsah stránky." });
   }
 
   function addSection(type: CampaignSectionTypeValue) {
@@ -171,6 +256,11 @@ export function CampaignContentEditor({ sections: initialSections, galleryItems,
   function removeSection(section: EditableCampaignSection) {
     if (!window.confirm(`Odstrániť sekciu „${sectionNames[section.type]}“? Zmena sa prejaví po uložení.`)) return;
     setSections((current) => current.filter((item) => item.id !== section.id).map((item, position) => ({ ...item, position })));
+    setOpenedSectionIds((current) => {
+      const next = new Set(current);
+      next.delete(section.id);
+      return next;
+    });
     if (editingId === section.id) setEditingId(null);
   }
 
@@ -210,7 +300,7 @@ export function CampaignContentEditor({ sections: initialSections, galleryItems,
     <section className="mt-12" aria-labelledby="page-content-title">
       <div className="flex flex-col gap-4 border-b border-[var(--line)] pb-6 sm:flex-row sm:items-end sm:justify-between">
         <div><p className="text-xs font-semibold uppercase tracking-[.14em] text-[#8a938c]">Landing page</p><h2 id="page-content-title" className="mt-1 text-2xl font-semibold">Obsah stránky</h2><p className="mt-2 max-w-2xl text-sm text-[#737c75]">Upravujte iba obsah. Vzhľad a rozloženie jednotlivých typov sekcií zabezpečuje aplikácia.</p></div>
-        <Link href={previewHref} target="_blank" className="inline-flex w-fit items-center gap-2 text-sm font-semibold text-[var(--accent-dark)]"><Eye size={16} /> Náhľad stránky</Link>
+        <Link href={previewHref} target="_blank" className="inline-flex w-fit items-center gap-2 text-sm font-semibold text-[var(--accent-dark)]"><Eye size={16} /> Náhľad uloženého obsahu</Link>
       </div>
 
       <form action={submitContent} className="mt-6">
@@ -226,7 +316,7 @@ export function CampaignContentEditor({ sections: initialSections, galleryItems,
               onDrop={() => { if (draggedIndex !== null) moveSection(draggedIndex, index); setDraggedIndex(null); }}
               className={`border transition ${editing ? "border-[#a8b4aa] bg-[#fbfcfa]" : "border-[var(--line)] bg-white"} ${draggedIndex === index ? "opacity-60" : ""}`}
             >
-              <div className="flex items-center gap-3 px-4 py-4 sm:px-5">
+              <div className="flex flex-wrap items-center gap-3 px-4 py-4 sm:flex-nowrap sm:px-5">
                 <span className="hidden cursor-grab text-[#929a94] sm:inline-flex" aria-label="Potiahnutím zmeniť poradie"><GripVertical size={18} /></span>
                 <div className="min-w-0 flex-1"><h3 className="font-semibold">{sectionNames[section.type]}</h3><p className="mt-0.5 truncate text-sm text-[#788179]">{summary(section, galleryOnlyItems.length)}</p></div>
                 <label className="flex cursor-pointer items-center gap-2 text-xs text-[#657067]"><input type="checkbox" className="size-4 accent-[#26372a]" checked={section.isVisible} onChange={(event) => replaceSection(section.id, (item) => ({ ...item, isVisible: event.target.checked }))} /><span className="hidden sm:inline">{section.isVisible ? "Viditeľná" : "Skrytá"}</span></label>
@@ -234,13 +324,35 @@ export function CampaignContentEditor({ sections: initialSections, galleryItems,
                   <button type="button" className="inline-flex size-9 items-center justify-center text-[#687169] disabled:opacity-25" disabled={index === 0} onClick={() => moveSection(index, index - 1)} aria-label={`Posunúť sekciu ${sectionNames[section.type]} vyššie`}><ArrowUp size={16} /></button>
                   <button type="button" className="inline-flex size-9 items-center justify-center text-[#687169] disabled:opacity-25" disabled={index === sections.length - 1} onClick={() => moveSection(index, index + 1)} aria-label={`Posunúť sekciu ${sectionNames[section.type]} nižšie`}><ArrowDown size={16} /></button>
                 </div>
-                <button type="button" className="text-sm font-semibold text-[var(--accent-dark)]" onClick={() => editing ? cancelEditor() : openEditor(section)}>{editing ? "Zavrieť" : "Upraviť"}</button>
+                <div className="flex w-full shrink-0 items-center justify-end gap-3 sm:w-auto">
+                  <button type="button" className="inline-flex items-center gap-1.5 whitespace-nowrap text-sm font-semibold text-[var(--accent-dark)]" onClick={() => openAiEditor(section)}><Sparkles size={15} aria-hidden="true" /> Upraviť s AI</button>
+                  <button type="button" className="whitespace-nowrap text-sm font-semibold text-[var(--accent-dark)]" onClick={() => editing ? finishEditor() : openEditor(section)}>{editing ? "Hotovo" : "Upraviť"}</button>
+                </div>
               </div>
 
-              {editing && <div className="border-t border-[var(--line)] px-4 py-6 sm:px-12">
+              {openedSectionIds.has(section.id) && <div hidden={!editing} className="border-t border-[var(--line)] px-4 py-6 sm:px-12">
+                {aiEditingId === section.id && <div className="mb-7 border-b border-[var(--line)] pb-7">
+                  <div className="flex items-start justify-between gap-4">
+                    <div><h4 className="flex items-center gap-2 font-semibold"><Sparkles size={17} aria-hidden="true" /> Upraviť sekciu s AI</h4><p className="mt-1 max-w-2xl text-sm leading-relaxed text-[#737c75]">Opíšte požadovanú zmenu, skopírujte pripravené zadanie do svojej AI a výsledný JSON vložte späť.</p></div>
+                    <button type="button" className="text-xs font-semibold text-[#687169]" onClick={() => { setAiEditingId(null); setAiInstruction(""); setAiJson(""); setAiMessage(null); }}>Skryť</button>
+                  </div>
+                  <label className="mt-4 block">
+                    <span className="text-xs font-semibold uppercase tracking-[.1em] text-[#747d76]">Čo chcete zmeniť?</span>
+                    <textarea className="admin-field mt-1 min-h-24 text-sm leading-relaxed" value={aiInstruction} onChange={(event) => { setAiInstruction(event.target.value); setAiMessage(null); }} placeholder="Napríklad: Skráť text, zdôrazni osobný prístup a zachovaj cenu aj odkazy." maxLength={1500} />
+                  </label>
+                  <button type="button" disabled={!aiInstruction.trim()} onClick={() => void copyAiPrompt(section)} className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--accent-dark)] disabled:cursor-not-allowed disabled:opacity-45"><Copy size={14} aria-hidden="true" /> Kopírovať zadanie s aktuálnym JSON</button>
+                  <label className="mt-5 block">
+                    <span className="text-xs font-semibold uppercase tracking-[.1em] text-[#747d76]">JSON sekcie od AI</span>
+                    <textarea className="admin-field mt-1 min-h-40 font-mono text-xs leading-relaxed" value={aiJson} onChange={(event) => { setAiJson(event.target.value); setAiMessage(null); }} placeholder={'{\n  "schemaVersion": 1,\n  "sectionType": "' + section.type + '",\n  "content": { ... }\n}'} spellCheck={false} />
+                  </label>
+                  <div className="mt-3 flex flex-wrap items-center gap-4">
+                    <button type="button" disabled={!aiJson.trim()} onClick={() => applyAiJson(section)} className="rounded-[3px] bg-[var(--ink)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#393535] disabled:cursor-not-allowed disabled:opacity-50">Použiť JSON v sekcii</button>
+                  </div>
+                  {aiMessage && <p className={`mt-4 flex items-start gap-2 text-sm ${aiMessage.kind === "success" ? "text-[#35623d]" : "text-[#a1433e]"}`} role={aiMessage.kind === "error" ? "alert" : "status"}>{aiMessage.kind === "success" ? <CheckCircle2 className="mt-0.5 shrink-0" size={17} aria-hidden="true" /> : <AlertCircle className="mt-0.5 shrink-0" size={17} aria-hidden="true" />}<span>{aiMessage.text}</span></p>}
+                </div>}
                 <SectionFields section={section} updateContent={updateContent} galleryItems={galleryOnlyItems} galleryRef={galleryRef} heroImageRef={heroImageRef} offerImageRef={offerImageRef} currentCampaignId={currentCampaignId} mediaLibrary={mediaLibrary} />
                 <div className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-3 border-t border-[var(--line)] pt-5">
-                  <button type="button" onClick={() => { setEditingId(null); setEditingBackup(null); }} className="text-sm font-semibold text-[var(--accent-dark)]">Hotovo</button>
+                  <button type="button" onClick={finishEditor} className="text-sm font-semibold text-[var(--accent-dark)]">Hotovo</button>
                   <button type="button" onClick={cancelEditor} className="text-sm text-[#6f786f]">Zrušiť úpravy sekcie</button>
                   {!singleInstanceTypes.has(section.type) && <button type="button" onClick={() => duplicateSection(section)} className="inline-flex items-center gap-1.5 text-sm text-[#59655c]"><Copy size={14} /> Duplikovať</button>}
                   {!nonRemovableTypes.has(section.type) && <button type="button" onClick={() => removeSection(section)} className="ml-auto inline-flex items-center gap-1.5 text-sm text-[#9a4540]"><Trash2 size={14} /> Odstrániť sekciu</button>}
@@ -251,14 +363,14 @@ export function CampaignContentEditor({ sections: initialSections, galleryItems,
         </div>
 
         <div className="mt-5">
-          <button type="button" onClick={() => { setChooserOpen((open) => !open); setEditingId(null); }} className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--accent-dark)]"><Plus size={17} /> Pridať sekciu</button>
+          <button type="button" onClick={() => { setChooserOpen((open) => !open); finishEditor(); }} className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--accent-dark)]"><Plus size={17} /> Pridať sekciu</button>
           {chooserOpen && <div className="mt-4 grid gap-3 border-y border-[var(--line)] py-5 sm:grid-cols-2 lg:grid-cols-3">
             {sectionOptions.filter((option) => !unavailableTypes.has(option.type)).map((option) => <button key={option.type} type="button" onClick={() => addSection(option.type)} className="group flex items-start gap-3 border border-[var(--line)] bg-white p-4 text-left transition hover:border-[#aab6ac] hover:bg-[#fbfcfa]"><span className="mt-0.5 text-[var(--accent)]">{option.type === "GALLERY" ? <ImageIcon size={18} /> : <LayoutList size={18} />}</span><span><strong className="block text-sm">{option.label}</strong><span className="mt-1 block text-xs text-[#7a837c]">{option.description}</span></span></button>)}
           </div>}
         </div>
 
         {uploadError && <p className="mt-5 border-l-2 border-[#a1433e] bg-[#fff7f6] px-4 py-3 text-sm text-[#8f332f]" role="alert">{uploadError}</p>}
-        <div className="sticky bottom-0 z-20 mt-8 flex flex-wrap items-center gap-4 border-t border-[var(--line)] bg-white/95 py-4 backdrop-blur"><SaveButton /><Link href={previewHref} target="_blank" className="inline-flex items-center gap-2 text-sm font-semibold"><Eye size={15} /> Náhľad stránky</Link><span className="text-xs text-[#89918b]">Poradie, viditeľnosť aj obsah sa uložia naraz.</span></div>
+        <div className="sticky bottom-0 z-20 mt-8 flex flex-wrap items-center gap-4 border-t border-[var(--line)] bg-white/95 py-4 backdrop-blur"><SaveButton /><Link href={previewHref} target="_blank" className="inline-flex items-center gap-2 text-sm font-semibold"><Eye size={15} /> Náhľad uloženého obsahu</Link><span className="text-xs text-[#89918b]">Poradie, viditeľnosť aj obsah sa uložia naraz. Náhľad zobrazuje poslednú uloženú verziu.</span></div>
       </form>
     </section>
   );
@@ -295,6 +407,6 @@ function SectionFields({ section, updateContent, galleryItems, galleryRef, heroI
 
   if (section.type === "VIDEO") return <div className="space-y-7">{common}<CampaignMediaUrlField label="Odkaz na video" value={value("videoUrl")} onChange={field("videoUrl")} mediaLibrary={mediaLibrary} currentCampaignId={currentCampaignId} mediaTypes={["VIDEO"]} /><TextControl label="Popis videa" value={value("caption")} maxLength={240} onChange={field("caption")} /></div>;
   if (section.type === "CTA") return <div className="space-y-7">{common}<div className="grid gap-5 sm:grid-cols-2"><TextControl label="Text tlačidla" value={value("ctaLabel")} maxLength={80} onChange={field("ctaLabel")} /><TextControl label="Kam tlačidlo vedie" value={value("href")} maxLength={1000} onChange={field("href")} /></div></div>;
-  if (section.type === "TEXT_IMAGE") return <div className="space-y-7">{common}<div className="grid gap-5 sm:grid-cols-2"><CampaignMediaUrlField label="Odkaz na obrázok" value={value("imageUrl")} onChange={field("imageUrl")} mediaLibrary={mediaLibrary} currentCampaignId={currentCampaignId} mediaTypes={["IMAGE"]} /><TextControl label="Popis obrázka" value={value("imageAlt")} maxLength={240} onChange={field("imageAlt")} /></div></div>;
+  if (section.type === "TEXT_IMAGE") return <div className="space-y-7">{common}<div className="grid gap-5 sm:grid-cols-2"><CampaignMediaUrlField label="Odkaz na obrázok" value={value("imageUrl")} onChange={field("imageUrl")} mediaLibrary={mediaLibrary} currentCampaignId={currentCampaignId} mediaTypes={["IMAGE"]} /><TextControl label="Alternatívny text obrázka" value={value("imageAlt")} maxLength={240} onChange={field("imageAlt")} /></div></div>;
   return common;
 }

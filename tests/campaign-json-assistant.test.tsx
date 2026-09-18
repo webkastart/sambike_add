@@ -47,9 +47,11 @@ describe("AI JSON panel kampane", () => {
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
     render(<TestForm />);
 
+    fireEvent.change(screen.getByLabelText("Opis kampane"), { target: { value: "Jarný servis pre mestské bicykle." } });
     fireEvent.click(screen.getByRole("button", { name: "Kopírovať zadanie pre AI" }));
 
     await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+    expect(writeText.mock.calls[0][0]).toContain("Jarný servis pre mestské bicykle.");
     expect(writeText.mock.calls[0][0]).toContain('"name": "name original"');
     expect(writeText.mock.calls[0][0]).toContain('"title": "Pôvodný benefit"');
     expect(screen.getByRole("status").textContent).toContain("skopírované");

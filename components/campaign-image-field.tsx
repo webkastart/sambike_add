@@ -58,6 +58,11 @@ export const CampaignImageField = forwardRef<CampaignImageFieldHandle, Props>(fu
     };
   }, [previewUrl]);
 
+  useEffect(() => {
+    setUrlValue(currentImageUrl ?? "");
+    setFailedImageUrl("");
+  }, [currentImageUrl]);
+
   function selectImage(file?: File) {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
 

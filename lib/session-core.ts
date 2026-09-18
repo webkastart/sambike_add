@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 export const adminSessionCookie = "sambike_admin_session";
-export const adminSessionLifetimeSeconds = 8 * 60 * 60;
+export const adminSessionLifetimeSeconds = 90 * 24 * 60 * 60;
 
 type SessionPayload = {
   sub: "admin";

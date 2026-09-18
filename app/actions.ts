@@ -23,6 +23,7 @@ import { leadDedupeKey, verifyLeadFormToken } from "@/lib/lead-protection";
 import { normalizePhone, parseLeadSubmission } from "@/lib/lead-validation";
 import { consumeRateLimit, requestIp } from "@/lib/rate-limit";
 import { privacyPolicyVersion } from "@/lib/security-config";
+import { configuredMetaPixelId, setMetaPixelEnabled } from "@/lib/meta-pixel";
 import { verifyTurnstile } from "@/lib/turnstile";
 import type { CampaignSectionType, Prisma } from "@/generated/prisma/client";
 import {
@@ -64,6 +65,19 @@ export async function updateLeadNotificationRecipients(formData: FormData) {
 
   revalidatePath("/admin/nastavenia");
   redirect("/admin/nastavenia?saved=1");
+}
+
+export async function updateMetaPixelSetting(formData: FormData) {
+  await requireAdmin();
+  const enabled = formData.get("metaPixelEnabled") === "on";
+
+  if (enabled && !configuredMetaPixelId()) {
+    redirect("/admin/nastavenia?pixelError=missing");
+  }
+
+  await setMetaPixelEnabled(enabled);
+  revalidatePath("/admin/nastavenia");
+  redirect("/admin/nastavenia?pixelSaved=1");
 }
 
 const campaignImageFields = [

@@ -1,6 +1,7 @@
 import { BadgeCheck, Mail, Megaphone } from "lucide-react";
-import { updateLeadNotificationRecipients } from "@/app/actions";
+import { updateLeadNotificationRecipients, updateMetaPixelSetting } from "@/app/actions";
 import { emergencyPauseAllMetaAds, verifyMetaConnectionAction } from "@/app/meta-actions";
+import { getMetaPixelSettings } from "@/lib/meta-pixel";
 import { getNotificationRecipientSettings } from "@/lib/notification-recipients";
 import { getMetaConnectionSummary, metaBillingUrl } from "@/lib/meta-ads";
 import { prisma } from "@/lib/prisma";
@@ -11,11 +12,12 @@ export const dynamic = "force-dynamic";
 export default async function SettingsPage({
   searchParams,
 }: {
-    searchParams: Promise<{ saved?: string; metaVerified?: string; metaError?: string; emergencyPaused?: string; emergencyFailed?: string }>;
+    searchParams: Promise<{ saved?: string; pixelSaved?: string; pixelError?: string; metaVerified?: string; metaError?: string; emergencyPaused?: string; emergencyFailed?: string }>;
 }) {
-  const [query, recipients] = await Promise.all([
+  const [query, recipients, metaPixel] = await Promise.all([
     searchParams,
     getNotificationRecipientSettings(),
+    getMetaPixelSettings(),
   ]);
   const activeCount = recipients.filter((recipient) => recipient.enabled).length;
   const from = process.env.RESEND_FROM_EMAIL?.trim();
@@ -111,7 +113,55 @@ export default async function SettingsPage({
         {query.metaError && <p className="mt-6 text-sm font-medium text-[#a1433e]">{query.metaError}</p>}
         {query.emergencyPaused && <p className={`mt-6 text-sm font-medium ${query.emergencyFailed === "0" ? "text-[#4e6a37]" : "text-[#a1433e]"}`}>Núdzovo pozastavené: {query.emergencyPaused}. Zlyhania: {query.emergencyFailed}. {query.emergencyFailed !== "0" && "Skontrolujte jednotlivé reklamy v Ads Manageri."}</p>}
 
-        <dl className="mt-7 grid gap-x-8 gap-y-4 border-y border-[var(--line)] py-6 text-sm sm:grid-cols-[10rem_1fr]">
+        <div className="mt-8 border-y border-[var(--line)] py-6">
+          <div className="flex items-start justify-between gap-6">
+            <div>
+              <h3 className="font-semibold">Meta Pixel na landing pages</h3>
+              <p className="mt-2 max-w-xl text-sm leading-6 text-[#737c75]">
+                Meria návštevy a úspešné odoslania formulára, aby Meta vedela priradiť výsledky k reklamám a lepšie ich optimalizovať. Pixel sa načíta až po výslovnom povolení marketingových cookies návštevníkom.
+              </p>
+            </div>
+            <span className={`mt-1 size-2 shrink-0 rounded-full ${metaPixel.enabled ? "bg-[#7da33e]" : "bg-[#a7ada8]"}`} aria-hidden="true" />
+          </div>
+
+          {query.pixelSaved && <p className="mt-4 text-sm font-medium text-[#4e6a37]">Nastavenie Meta Pixelu bolo uložené.</p>}
+          {query.pixelError && <p className="mt-4 text-sm font-medium text-[#a1433e]">Pixel nemožno zapnúť, kým v hostingu nie je platné číselné `NEXT_PUBLIC_META_PIXEL_ID`.</p>}
+
+          <form action={updateMetaPixelSetting} className="mt-5">
+            <div className={`flex items-center justify-between gap-5 ${metaPixel.configured ? "" : "opacity-60"}`}>
+              <span>
+                <label htmlFor="meta-pixel-enabled" className={`block text-sm font-medium ${metaPixel.configured ? "cursor-pointer" : "cursor-not-allowed"}`}>Zapnúť meranie cez Meta Pixel</label>
+                <span id="meta-pixel-description" className="mt-1 block text-xs text-[#8a928c]">
+                  {metaPixel.configured
+                    ? metaPixel.enabled ? "Pixel je zapnutý a čaká na súhlas každého návštevníka." : "ID je nastavené, Pixel je momentálne vypnutý."
+                    : "Najprv pridajte NEXT_PUBLIC_META_PIXEL_ID do produkčného prostredia a aplikáciu znovu nasaďte."}
+                </span>
+              </span>
+              <input
+                id="meta-pixel-enabled"
+                type="checkbox"
+                name="metaPixelEnabled"
+                defaultChecked={metaPixel.enabled}
+                disabled={!metaPixel.configured}
+                aria-describedby="meta-pixel-description"
+                className="size-4 shrink-0 accent-[#26372a]"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={!metaPixel.configured}
+              className="mt-5 inline-flex min-h-10 items-center rounded-[3px] bg-[var(--accent-dark)] px-4 text-sm font-semibold text-white transition hover:bg-[#075eac] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Uložiť nastavenie Pixelu
+            </button>
+          </form>
+
+          <p className="mt-4 text-xs leading-relaxed text-[#8a928c]">
+            Vypnutie zastaví meranie na landing pages, ale nepozastaví samotné Facebook ani Instagram reklamy. ID sa mení iba cez prostredie hostingu.
+          </p>
+        </div>
+
+        <dl className="mt-8 grid gap-x-8 gap-y-4 border-y border-[var(--line)] py-6 text-sm sm:grid-cols-[10rem_1fr]">
           <dt className="text-[#8a928c]">Stav</dt>
           <dd className="inline-flex items-center gap-2 font-medium">
             <span className={`size-2 rounded-full ${meta.configured ? "bg-[#7da33e]" : "bg-[#c0756e]"}`} />
