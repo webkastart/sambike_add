@@ -8,7 +8,7 @@ export function Logo({ href = "/admin", light = false, stacked = false }: { href
         href={href}
         className="shrink-0"
         aria-label="Sambike · servis bicyklov"
-        style={{ display: "inline-flex", width: "7.2rem", flexDirection: "column", alignItems: "center", gap: ".25rem" }}
+        style={{ display: "inline-flex", width: "5.5rem", flexDirection: "column", alignItems: "center", gap: ".25rem" }}
       >
         <Image
           src="/brand/sambike-mark.png"
@@ -19,7 +19,9 @@ export function Logo({ href = "/admin", light = false, stacked = false }: { href
           aria-hidden="true"
           style={{ display: "block", width: "2.25rem", height: "auto" }}
         />
-        <span className={light ? "text-white" : "text-[var(--ink)]"} style={{ fontSize: "1.45rem", fontWeight: 700, lineHeight: 1, letterSpacing: "-.055em" }}>Sambike</span>
+        <span className={light ? "text-white" : "text-[var(--ink)]"} aria-hidden="true" style={{ fontSize: "1.45rem", fontWeight: 700, lineHeight: 1, letterSpacing: "-.055em" }}>
+          Samb<span className="relative inline-block">ı<span className="absolute left-1/2 top-[-.02em] size-[.26em] -translate-x-1/2 rounded-full bg-[var(--accent)]" /></span>ke
+        </span>
       </Link>
     );
   }

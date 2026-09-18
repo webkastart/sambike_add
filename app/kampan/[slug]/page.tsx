@@ -77,14 +77,14 @@ function BikeCta({ href, label, className = "" }: { href: string; label: string;
     <a
       href={href}
       data-track="cta"
-      className={`group inline-flex min-h-14 items-center gap-3 rounded-full bg-[#221f1f] p-2 pr-3 text-white shadow-[0_14px_30px_rgba(34,31,31,.2)] ring-1 ring-black/10 transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_38px_rgba(34,31,31,.26)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#0971ce]/25 active:translate-y-0 active:scale-[.98] ${className}`}
+      className={`group inline-flex min-h-11 items-center gap-1 rounded-full bg-[#221f1f] p-1 pr-2 text-white shadow-[0_12px_26px_rgba(34,31,31,.18)] ring-1 ring-black/10 transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_38px_rgba(34,31,31,.26)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#0971ce]/25 active:translate-y-0 active:scale-[.98] sm:min-h-14 sm:gap-3 sm:p-2 sm:pr-3 sm:shadow-[0_14px_30px_rgba(34,31,31,.2)] ${className}`}
     >
-      <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] shadow-[inset_0_1px_0_rgba(255,255,255,.28)]" aria-hidden="true">
-        <Bike size={21} strokeWidth={2.1} className="transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+      <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] shadow-[inset_0_1px_0_rgba(255,255,255,.28)] sm:size-10" aria-hidden="true">
+        <Bike strokeWidth={2.1} className="size-[17px] transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 sm:size-[21px]" />
       </span>
-      <span className="px-1 text-sm font-bold tracking-[-.01em]">{label}</span>
-      <span className="ml-1 flex size-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-[#74c2ff] transition duration-200 group-hover:translate-x-0.5 group-hover:bg-white group-hover:text-[var(--accent)]" aria-hidden="true">
-        <ArrowRight size={17} strokeWidth={2.2} />
+      <span className="px-1 text-xs font-bold tracking-[-.01em] sm:text-sm">{label}</span>
+      <span className="ml-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-white/10 text-[#74c2ff] transition duration-200 group-hover:translate-x-0.5 group-hover:bg-white group-hover:text-[var(--accent)] sm:ml-1 sm:size-9" aria-hidden="true">
+        <ArrowRight className="size-4 sm:size-[17px]" strokeWidth={2.2} />
       </span>
     </a>
   );
@@ -221,13 +221,13 @@ export default async function CampaignLandingPage({ params, searchParams }: Prop
       const sectionImage = useVariantB ? heroImage : sectionContentString(content, "imageUrl", heroImage);
       return <section data-campaign-hero className="mx-auto grid max-w-[82rem] gap-5 px-4 pb-16 sm:px-8 lg:grid-cols-[1.08fr_.92fr] lg:gap-7 lg:pb-24">
         <article className="overflow-hidden rounded-[1.75rem] bg-white shadow-[0_24px_70px_rgba(28,38,31,.08)] ring-1 ring-black/[.035] sm:rounded-[2.75rem]">
-          <div className="relative bg-[#dfe3dc]" style={{ height: "clamp(14rem, 62.5vw, 27rem)" }}><Image src={sectionImage} alt={heroMedia?.caption || sectionHeadline} fill loading="eager" fetchPriority="high" unoptimized={isRemoteMedia(sectionImage)} sizes="(max-width: 1024px) 100vw, 56vw" className="object-cover" />{heroMedia?.caption && <p className="absolute left-5 top-5 max-w-[80%] rounded-full bg-white/92 px-4 py-2 text-xs font-medium shadow-sm backdrop-blur-sm sm:left-7 sm:top-7">{heroMedia.caption}</p>}</div>
-          <div className="relative -mt-7 overflow-hidden rounded-t-[1.75rem] bg-white px-6 pb-7 pt-9 sm:-mt-12 sm:rounded-t-[2.75rem] sm:px-10 sm:pb-10 sm:pt-11 lg:-mt-9 lg:pb-9 lg:pt-10">
+          <div className="relative bg-[#dfe3dc]" style={{ height: "clamp(14rem, 62.5vw, 27rem)" }}><Image src={sectionImage} alt={heroMedia?.caption || sectionHeadline} fill quality={90} loading="eager" fetchPriority="high" unoptimized={isRemoteMedia(sectionImage)} sizes="(max-width: 1024px) 100vw, 56vw" className="object-cover" />{heroMedia?.caption && <p className="absolute left-5 top-5 max-w-[80%] rounded-full bg-white/92 px-4 py-2 text-xs font-medium shadow-sm backdrop-blur-sm sm:left-7 sm:top-7">{heroMedia.caption}</p>}</div>
+          <div className="relative -mt-4 overflow-hidden rounded-t-[1.75rem] bg-white px-6 pb-6 pt-7 sm:-mt-12 sm:rounded-t-[2.75rem] sm:px-10 sm:pb-10 sm:pt-11 lg:-mt-9 lg:pb-9 lg:pt-10">
             <div className="relative">
-              <p className="text-[.7rem] font-bold uppercase leading-snug tracking-[.18em] text-[var(--accent)]">{eyebrow || campaign.offerType} · Spišská Nová Ves</p>
+              <p className="text-[.6rem] font-bold uppercase leading-snug tracking-[.14em] text-[var(--accent)] sm:text-[.7rem] sm:tracking-[.18em]">{eyebrow || campaign.offerType} · Spišská Nová Ves</p>
               <h1 className="mt-3 max-w-2xl text-[2.15rem] font-bold leading-[.97] tracking-[-.05em] sm:mt-4 sm:text-5xl lg:text-[3.55rem]">{sectionHeadline}</h1>
-              <p className="mt-4 max-w-2xl text-base leading-[1.65] text-[#686b68] sm:mt-5 sm:text-lg lg:mt-4">{sectionCopy}</p>
-              <div className="mt-6 flex flex-col items-start gap-2.5 min-[360px]:flex-row min-[360px]:items-center sm:mt-7 sm:gap-4 lg:mt-6"><BikeCta href={primaryHref} label={sectionCta} /><a href={telHref(campaign.phone)} data-track="phone" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-3 text-sm font-semibold transition hover:bg-[#f2f6f3] hover:text-[var(--accent)]"><Phone size={16} className="text-[var(--accent)]" /> Zavolať</a></div>
+              <p className="mt-3.5 max-w-2xl text-base leading-[1.55] text-[#686b68] sm:mt-5 sm:text-lg sm:leading-[1.65] lg:mt-4">{sectionCopy}</p>
+              <div className="mt-5 flex items-center gap-1.5 sm:mt-7 sm:gap-4 lg:mt-6"><BikeCta href={primaryHref} label={sectionCta} /><a href={telHref(campaign.phone)} data-track="phone" className="inline-flex min-h-10 shrink-0 items-center justify-center gap-1.5 rounded-full px-1.5 text-xs font-semibold transition hover:bg-[#f2f6f3] hover:text-[var(--accent)] sm:min-h-11 sm:gap-2 sm:px-3 sm:text-sm"><Phone size={16} className="shrink-0 text-[var(--accent)]" /> Zavolať</a></div>
             </div>
           </div>
         </article>
@@ -253,13 +253,13 @@ export default async function CampaignLandingPage({ params, searchParams }: Prop
               <h2 className="mt-4 whitespace-pre-line text-4xl font-bold leading-[1.02] tracking-[-.045em]">{heading || "Jemný prístup. Poctivý servis."}</h2>
               {sectionDescription && <p className="mt-5 max-w-md leading-relaxed text-[#70736f]">{sectionDescription}</p>}
             </div>
-            <ul className="relative grid gap-7 before:absolute before:bottom-7 before:left-[1.625rem] before:top-7 before:w-px before:bg-gradient-to-b before:from-[#9fd1fa] before:via-[#d4e9fa] before:to-transparent sm:grid-cols-3 sm:gap-8 sm:before:hidden">
+            <ul className="relative grid gap-7 before:absolute before:bottom-7 before:left-[1.625rem] before:top-7 before:w-px before:bg-gradient-to-b before:from-[#7ebcf0] before:via-[#c7e1f7] before:to-transparent sm:grid-cols-3 sm:gap-8 sm:before:hidden">
               {shown.slice(0, 8).map((item, index) => {
                 const Icon = [Clock3, Wrench, ShieldCheck][index % 3];
                 return (
-                  <li key={`${item.title}-${index}`} className="relative grid grid-cols-[3.25rem_1fr] gap-4 sm:block">
-                    <span className="relative z-10 flex size-[3.25rem] items-center justify-center rounded-full bg-white shadow-[0_8px_22px_rgba(28,38,31,.07)] ring-1 ring-black/[.045]">
-                      {showServiceParts ? <ServiceBenefitIllustration name={serviceBenefitIllustrations[index % serviceBenefitIllustrations.length]} size={36} /> : <Icon size={21} strokeWidth={1.8} className="text-[var(--accent)]" />}
+                  <li key={`${item.title}-${index}`} className="relative grid grid-cols-[3.25rem_minmax(0,1fr)] items-start gap-4 sm:block">
+                    <span className="relative z-10 inline-flex h-[3.25rem] w-[3.25rem] min-w-[3.25rem] max-w-[3.25rem] shrink-0 justify-self-start items-center justify-center overflow-hidden rounded-full bg-white shadow-[0_8px_22px_rgba(28,38,31,.07)] ring-1 ring-black/[.045]">
+                      {showServiceParts ? <ServiceBenefitIllustration name={serviceBenefitIllustrations[index % serviceBenefitIllustrations.length]} size={36} className="shrink-0" /> : <Icon size={21} strokeWidth={1.8} className="shrink-0 text-[var(--accent)]" />}
                     </span>
                     <div className="pt-0.5 sm:mt-4 sm:pt-0">
                       <h3 className="font-bold">{item.title}</h3>
@@ -278,14 +278,58 @@ export default async function CampaignLandingPage({ params, searchParams }: Prop
     if (section.type === "OFFER") {
       const image = sectionContentString(content, "imageUrl", offerImage);
       const label = sectionContentString(content, "ctaLabel", ctaText);
-      return <section className="mx-auto grid max-w-[82rem] gap-5 px-4 pb-16 sm:px-8 lg:grid-cols-2 lg:gap-7 lg:pb-24"><figure className="overflow-hidden rounded-[2rem] bg-white sm:rounded-[2.75rem]"><div className="relative aspect-[4/3] bg-[#e2e4e0]"><Image src={image} alt={offerMedia?.caption || heading || campaign.name} fill unoptimized={isRemoteMedia(image)} sizes="(max-width: 1024px) 100vw, 50vw" className="object-cover" /></div>{offerMedia?.caption && <figcaption className="px-6 py-5 text-sm text-[#6f726f] sm:px-8">{offerMedia.caption}</figcaption>}</figure><div className="relative flex flex-col justify-center overflow-hidden rounded-[2rem] bg-white px-6 py-10 sm:rounded-[2.75rem] sm:px-10 lg:px-12">{showServiceParts && <ServiceIllustration name="chain" className="pointer-events-none absolute -right-16 -top-8 h-44 w-56 opacity-[0.055]" />}<div className="relative"><p className="text-xs font-bold uppercase tracking-[.18em] text-[var(--accent)]">{eyebrow || "Aktuálna ponuka"}</p><h2 className="mt-4 text-4xl font-bold leading-[1.02] tracking-[-.045em] sm:text-5xl">{heading || campaign.name}</h2><p className="mt-5 text-lg leading-relaxed text-[#6f726f]">{sectionDescription || description}</p><div className="mt-8 rounded-[1.15rem] bg-[#f4f5f2] px-5 py-4"><span className="block text-xs text-[#7a7e79]">Cena a podmienky</span><strong className="mt-1 block text-xl">{sectionContentString(content, "priceText", campaign.priceText)}</strong></div><a href={primaryHref} data-track="cta" className="mt-7 inline-flex items-center gap-2 self-start text-sm font-bold text-[var(--accent)]">{label}<ArrowRight size={16} /></a></div></div></section>;
+      return <section className="mx-auto grid max-w-[82rem] gap-5 px-4 pb-16 sm:px-8 lg:grid-cols-2 lg:gap-7 lg:pb-24"><figure className="overflow-hidden rounded-[2rem] bg-white sm:rounded-[2.75rem]"><div className="relative aspect-[4/3] bg-[#e2e4e0]"><Image src={image} alt={offerMedia?.caption || heading || campaign.name} fill quality={90} unoptimized={isRemoteMedia(image)} sizes="(max-width: 1024px) 100vw, 50vw" className="object-cover" /></div>{offerMedia?.caption && <figcaption className="px-6 py-5 text-sm text-[#6f726f] sm:px-8">{offerMedia.caption}</figcaption>}</figure><div className="relative flex flex-col justify-center overflow-hidden rounded-[2rem] bg-white px-6 py-10 sm:rounded-[2.75rem] sm:px-10 lg:px-12">{showServiceParts && <ServiceIllustration name="chain" className="pointer-events-none absolute -right-16 -top-8 h-44 w-56 opacity-[0.055]" />}<div className="relative"><p className="text-xs font-bold uppercase tracking-[.18em] text-[var(--accent)]">{eyebrow || "Aktuálna ponuka"}</p><h2 className="mt-4 text-4xl font-bold leading-[1.02] tracking-[-.045em] sm:text-5xl">{heading || campaign.name}</h2><p className="mt-5 text-lg leading-relaxed text-[#6f726f]">{sectionDescription || description}</p><div className="mt-8 rounded-[1.15rem] bg-[#f4f5f2] px-5 py-4"><span className="block text-xs text-[#7a7e79]">Cena a podmienky</span><strong className="mt-1 block text-xl">{sectionContentString(content, "priceText", campaign.priceText)}</strong></div><a href={primaryHref} data-track="cta" className="mt-7 inline-flex items-center gap-2 self-start text-sm font-bold text-[var(--accent)]">{label}<ArrowRight size={16} /></a></div></div></section>;
     }
 
     if (section.type === "FORM") return <section id="mam-zaujem" data-lead-form-section className="mx-auto max-w-[82rem] scroll-mt-6 px-4 pb-16 sm:px-8 lg:pb-24"><div className="grid gap-12 rounded-[2rem] bg-white px-6 py-10 sm:rounded-[2.75rem] sm:px-10 lg:grid-cols-[.72fr_1.28fr] lg:gap-20 lg:px-12 lg:py-14"><div className="relative overflow-hidden">{showServiceParts && <ServiceIllustration name="chain-lube" className="pointer-events-none absolute -bottom-2 -right-2 h-20 w-20 opacity-[0.06] sm:-bottom-5 sm:-right-5 sm:h-40 sm:w-36 sm:opacity-[0.07]" />}<div className="relative"><p className="text-xs font-bold uppercase tracking-[.18em] text-[var(--accent)]">{eyebrow || "Nezáväzná požiadavka"}</p><h2 className="mt-4 text-4xl font-bold leading-[1.02] tracking-[-.045em] sm:text-5xl">{heading || "Dohodnime si podrobnosti."}</h2><p className="mt-5 max-w-sm leading-relaxed text-[#6f726f]">{sectionDescription || campaign.responseTimeText || "Stačí meno a telefón. Ozveme sa a spolu dohodneme termín aj rozsah."}</p><div className="mt-8 space-y-3 text-sm"><a href={telHref(campaign.phone)} data-track="phone" className="flex items-center gap-3 hover:text-[var(--accent)]"><Phone size={17} className="text-[var(--accent)]" />{campaign.phone}</a><a href={`mailto:${campaign.email}`} className="flex items-center gap-3 hover:text-[var(--accent)]"><Mail size={17} className="text-[var(--accent)]" />{campaign.email}</a><a href={instagramProfileUrl} target="_blank" rel="noreferrer" className="flex items-center gap-3 hover:text-[var(--accent)]"><AtSign size={17} className="text-[var(--accent)]" />@sambike_snv</a>{campaign.address && (campaign.mapUrl ? <a href={campaign.mapUrl} target="_blank" rel="noreferrer" className="flex items-start gap-3 text-[#6f726f] hover:text-[var(--accent)]"><MapPin size={17} className="mt-0.5 shrink-0 text-[var(--accent)]" />{campaign.address}</a> : <p className="flex items-start gap-3 text-[#6f726f]"><MapPin size={17} className="mt-0.5 shrink-0 text-[var(--accent)]" />{campaign.address}</p>)}{campaign.openingHours && <p className="flex items-start gap-3 text-[#6f726f]"><Clock3 size={17} className="mt-0.5 shrink-0 text-[var(--accent)]" />{campaign.openingHours}</p>}</div></div></div>{preview ? <div className="self-center border-y border-[#d9dcd7] py-10 text-center" role="status"><p className="font-semibold">Formulár je v náhľade bezpečne vypnutý.</p><p className="mt-2 text-sm text-[#6f726f]">Náhľad nevytvorí lead ani neodošle e-mail.</p></div> : <LeadForm campaignId={campaign.id} campaignSlug={campaign.slug} offerType={campaign.offerType} formToken={formToken} turnstileSiteKey={turnstileSiteKey} variant={variant} />}</div></section>;
 
     if (section.type === "GALLERY") {
       const media = galleryMedia;
-      return <>{(beforeMedia || afterMedia) && <section className="mx-auto max-w-[82rem] px-4 pb-16 sm:px-8 lg:pb-24"><p className="text-xs font-bold uppercase tracking-[.18em] text-[var(--accent)]">Pred a po</p><h2 className="mt-4 text-4xl font-bold tracking-[-.045em] sm:text-5xl">Rozdiel, ktorý je vidieť.</h2><div className="mt-8 grid gap-5 sm:grid-cols-2">{([[beforeMedia, "Pred servisom"], [afterMedia, "Po servise"]] as const).flatMap(([item, label]) => item ? [<figure key={item.id} className="overflow-hidden rounded-[2rem] bg-white"><div className="relative aspect-[4/3] bg-[#dfe2dd]"><Image src={item.mediaUrl} alt={item.caption || label} fill unoptimized={isRemoteMedia(item.mediaUrl)} sizes="(max-width: 640px) 100vw, 50vw" className="object-cover" /></div><figcaption className="px-6 py-5 text-sm font-semibold">{label}{item.caption ? ` · ${item.caption}` : ""}</figcaption></figure>] : [])}</div></section>}{media.length > 0 && <section className="mx-auto max-w-[82rem] px-4 pb-16 sm:px-8 lg:pb-24"><div className="mb-9 sm:flex sm:items-end sm:justify-between"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-[var(--accent)]">{eyebrow || "Práca zo servisu"}</p><h2 className="mt-4 text-4xl font-bold tracking-[-.045em] sm:text-5xl">{heading || "Detail, ktorý je vidieť."}</h2></div>{sectionDescription && <p className="mt-4 max-w-sm text-sm leading-relaxed text-[#70736f] sm:mt-0">{sectionDescription}</p>}</div><div className="grid gap-5 sm:grid-cols-2">{media.map((item, index) => { const label = item.caption || `${campaign.name} – ${item.mediaType === "VIDEO" ? "video" : "fotografia"} ${index + 1}`; return <figure key={item.id} className={`overflow-hidden rounded-[2rem] bg-white sm:rounded-[2.5rem] ${media.length % 2 === 1 && index === media.length - 1 ? "sm:col-span-2" : ""}`}><div className={`relative bg-[#dfe2dd] ${media.length % 2 === 1 && index === media.length - 1 ? "aspect-[4/3] sm:aspect-[21/9]" : "aspect-[4/3]"}`}>{item.mediaType === "VIDEO" ? <video src={item.mediaUrl} aria-label={label} controls muted playsInline preload="metadata" className="size-full object-cover" /> : <Image src={item.mediaUrl} alt={label} fill unoptimized={isRemoteMedia(item.mediaUrl)} sizes="(max-width: 640px) 100vw, 50vw" className="object-cover" />}</div><figcaption className="flex items-center gap-3 px-6 py-5 text-sm text-[#666a66]"><span className="flex size-6 items-center justify-center rounded-full bg-[#e9f3fc] text-[var(--accent)]"><Check size={13} strokeWidth={2.4} /></span>{item.caption || `${item.mediaType === "VIDEO" ? "Video" : "Zo servisu"} · ${String(index + 1).padStart(2, "0")}`}</figcaption></figure>; })}</div></section>}</>;
+      return <>
+        {(beforeMedia || afterMedia) && (
+          <section className="mx-auto max-w-[82rem] px-4 pb-16 sm:px-8 lg:pb-24">
+            <p className="text-xs font-bold uppercase tracking-[.18em] text-[var(--accent)]">Pred a po</p>
+            <h2 className="mt-4 text-4xl font-bold tracking-[-.045em] sm:text-5xl">Rozdiel, ktorý je vidieť.</h2>
+            <div className="mt-8 grid gap-5 sm:grid-cols-2">
+              {([[beforeMedia, "Pred servisom"], [afterMedia, "Po servise"]] as const).flatMap(([item, label]) => item ? [
+                <figure key={item.id} className="overflow-hidden rounded-[2rem] bg-white">
+                  <div className="relative aspect-[4/3] bg-[#dfe2dd]">
+                    <Image src={item.mediaUrl} alt={item.caption || label} fill quality={90} unoptimized={isRemoteMedia(item.mediaUrl)} sizes="(max-width: 640px) 100vw, 50vw" className="object-cover" />
+                  </div>
+                  <figcaption className="px-6 py-5 text-sm font-semibold">{label}{item.caption ? ` · ${item.caption}` : ""}</figcaption>
+                </figure>,
+              ] : [])}
+            </div>
+          </section>
+        )}
+        {media.length > 0 && (
+          <section className="mx-auto max-w-[82rem] px-4 pb-16 sm:px-8 lg:pb-24">
+            <div className="mb-9 sm:flex sm:items-end sm:justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[.18em] text-[var(--accent)]">{eyebrow || "Práca zo servisu"}</p>
+                <h2 className="mt-4 text-4xl font-bold tracking-[-.045em] sm:text-5xl">{heading || "Detail, ktorý je vidieť."}</h2>
+              </div>
+              {sectionDescription && <p className="mt-4 max-w-sm text-sm leading-relaxed text-[#70736f] sm:mt-0">{sectionDescription}</p>}
+            </div>
+            <div className="grid gap-5 sm:grid-cols-2">
+              {media.map((item, index) => {
+                const label = item.caption || `${campaign.name} – ${item.mediaType === "VIDEO" ? "video" : "fotografia"} ${index + 1}`;
+                const isLastOddItem = media.length % 2 === 1 && index === media.length - 1;
+                return (
+                  <figure key={item.id} className={`overflow-hidden rounded-[2rem] bg-white sm:rounded-[2.5rem] ${isLastOddItem ? "sm:col-span-2" : ""}`}>
+                    <div className={`relative bg-[#dfe2dd] ${isLastOddItem ? "aspect-[4/3] sm:aspect-[21/9]" : "aspect-[4/3]"}`}>
+                      {item.mediaType === "VIDEO"
+                        ? <video src={item.mediaUrl} aria-label={label} controls muted playsInline preload="metadata" className="size-full object-cover" />
+                        : <Image src={item.mediaUrl} alt={label} fill quality={90} unoptimized={isRemoteMedia(item.mediaUrl)} sizes="(max-width: 640px) 100vw, 50vw" className="object-cover" />}
+                    </div>
+                    <figcaption className="flex items-center gap-3 px-6 py-5 text-sm text-[#666a66]"><span className="flex size-6 items-center justify-center rounded-full bg-[#e9f3fc] text-[var(--accent)]"><Check size={13} strokeWidth={2.4} /></span>{item.caption || `${item.mediaType === "VIDEO" ? "Video" : "Zo servisu"} · ${String(index + 1).padStart(2, "0")}`}</figcaption>
+                  </figure>
+                );
+              })}
+            </div>
+          </section>
+        )}
+      </>;
     }
 
     if (section.type === "FAQ") {
@@ -307,7 +351,7 @@ export default async function CampaignLandingPage({ params, searchParams }: Prop
 
     if (section.type === "TEXT_IMAGE") {
       const image = sectionContentString(content, "imageUrl");
-      return <section className="mx-auto grid max-w-[82rem] gap-8 px-4 pb-16 sm:px-8 lg:grid-cols-2 lg:items-center lg:pb-24">{image && <div className="relative aspect-[4/3] overflow-hidden rounded-[2rem] bg-[#dfe2dd] sm:rounded-[2.75rem]"><Image src={image} alt={sectionContentString(content, "imageAlt", heading)} fill unoptimized={isRemoteMedia(image)} sizes="(max-width: 1024px) 100vw, 50vw" className="object-cover" /></div>}<div className="px-2 py-4 lg:px-8"><p className="text-xs font-bold uppercase tracking-[.18em] text-[var(--accent)]">{eyebrow}</p><h2 className="mt-4 text-4xl font-bold tracking-[-.045em] sm:text-5xl">{heading}</h2><p className="mt-5 text-lg leading-relaxed text-[#6f726f]">{sectionDescription}</p></div></section>;
+      return <section className="mx-auto grid max-w-[82rem] gap-8 px-4 pb-16 sm:px-8 lg:grid-cols-2 lg:items-center lg:pb-24">{image && <div className="relative aspect-[4/3] overflow-hidden rounded-[2rem] bg-[#dfe2dd] sm:rounded-[2.75rem]"><Image src={image} alt={sectionContentString(content, "imageAlt", heading)} fill quality={90} unoptimized={isRemoteMedia(image)} sizes="(max-width: 1024px) 100vw, 50vw" className="object-cover" /></div>}<div className="px-2 py-4 lg:px-8"><p className="text-xs font-bold uppercase tracking-[.18em] text-[var(--accent)]">{eyebrow}</p><h2 className="mt-4 text-4xl font-bold tracking-[-.045em] sm:text-5xl">{heading}</h2><p className="mt-5 text-lg leading-relaxed text-[#6f726f]">{sectionDescription}</p></div></section>;
     }
 
     if (section.type === "VIDEO") {
