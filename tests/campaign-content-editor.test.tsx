@@ -32,6 +32,20 @@ vi.mock("@/components/campaign-image-field", async () => {
   });
   return { CampaignImageField };
 });
+vi.mock("@/components/campaign-video-field", async () => {
+  const React = await import("react");
+  const CampaignVideoField = React.forwardRef<
+    { prepareUpload: () => Promise<{ direct: boolean; file: null; item: { mediaType: "VIDEO"; mediaUrl: string } | null }> },
+    Record<string, never>
+  >(function MockCampaignVideoField(_props, ref) {
+    const [selected, setSelected] = React.useState(false);
+    React.useImperativeHandle(ref, () => ({
+      prepareUpload: async () => ({ direct: true, file: null, item: selected ? { mediaType: "VIDEO", mediaUrl: "/uploads/new.mp4" } : null }),
+    }));
+    return <label>Nové video<input type="checkbox" checked={selected} onChange={(event) => setSelected(event.target.checked)} /></label>;
+  });
+  return { CampaignVideoField };
+});
 
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
@@ -104,6 +118,29 @@ describe("editor obsahu kampane", () => {
     const formData = action.mock.calls[0][0] as FormData;
     expect(formData.get("galleryEditorPresent")).toBe("1");
     expect(JSON.parse(formData.get("galleryItemData") as string).caption).toBe("Nový popis fotografie");
+  });
+
+  it("nahrá MP4 priamo do samostatnej video sekcie", async () => {
+    const action = vi.fn(async (formData: FormData) => { void formData; });
+    const videoSections = [
+      ...sections,
+      { id: "section_video", type: "VIDEO" as const, position: 2, isVisible: true, content: { heading: "Video", videoUrl: "" } },
+    ];
+    render(<CampaignContentEditor sections={videoSections} galleryItems={[]} action={action} previewHref="/preview" />);
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Upraviť" })[2]);
+    fireEvent.click(screen.getByLabelText("Nové video"));
+    fireEvent.click(screen.getByRole("button", { name: "Uložiť obsah" }));
+
+    await waitFor(() => expect(action).toHaveBeenCalledOnce());
+    const formData = action.mock.calls[0][0] as FormData;
+    const submitted = JSON.parse(formData.get("campaignSections") as string) as Array<{ id: string; content: Record<string, unknown> }>;
+    expect(submitted.find((section) => section.id === "section_video")?.content.videoUrl).toBe("/uploads/new.mp4");
+    expect(JSON.parse(formData.get("sectionUploadedMedia") as string)).toEqual({
+      sectionId: "section_video",
+      mediaType: "VIDEO",
+      mediaUrl: "/uploads/new.mp4",
+    });
   });
 
   it("skopíruje aktuálny JSON sekcie a použije upravený JSON od AI", async () => {

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ArrowUpRight } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, ChevronDown } from "lucide-react";
 import { applyExperimentVariant, changeCampaignStatus, duplicateCampaign, publishCampaign, restoreCampaignVersion, saveCampaignExperiment, saveCampaignSections, scheduleCampaign, updateCampaignSettings } from "@/app/actions";
 import { CampaignActions } from "@/components/campaign-actions";
 import { CampaignContentEditor } from "@/components/campaign-content-editor";
@@ -152,7 +152,34 @@ export default async function EditCampaignPage({
       {query.scheduled && <p className="mt-7 text-sm font-medium text-[#4e6a37]">Plán bol uložený v časovom pásme Europe/Bratislava.</p>}
       <CampaignActions status={campaign.status} previewHref={previewHref} publishAction={publishAction} readyAction={readyAction} pauseAction={pauseCampaignAction} archiveAction={archiveAction} restoreDraftAction={restoreDraftAction} duplicateAction={duplicateAction} />
 
-      <section className="mt-10" aria-labelledby="readiness-title"><div className="flex items-end justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[.14em] text-[#8a938c]">Kontrola pred publikovaním</p><h2 id="readiness-title" className="mt-1 text-xl font-semibold">{readiness.ready ? "Kampaň je pripravená" : "Doplňte povinné údaje"}</h2></div>{readiness.ready && (campaign.status === "READY" || campaign.status === "PAUSED") && <form action={publishAction}><button className="rounded-[3px] bg-[var(--accent-dark)] px-5 py-2.5 text-sm font-semibold text-white">Publikovať landing page</button></form>}</div><ul className="mt-5 grid gap-x-8 gap-y-3 border-y border-[var(--line)] py-5 sm:grid-cols-2">{readiness.items.map((item) => <li key={item.key} className="flex items-start gap-3 text-sm"><span aria-hidden="true" className={item.ready ? "text-[#4e6a37]" : item.level === "required" ? "text-[#a1433e]" : "text-[#9a6b25]"}>{item.ready ? "✓" : item.level === "required" ? "×" : "!"}</span><span><strong className="font-medium">{item.label}</strong><span className="ml-2 text-xs text-[#8a928c]">{item.level === "required" ? "povinné" : "odporúčané"}</span>{item.detail && <span className="mt-1 block break-all text-xs text-[#8a928c]">{item.detail}</span>}</span></li>)}</ul></section>
+      <details className="group mt-10 border-y border-[var(--line)]">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-5 marker:content-none">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[.14em] text-[#8a938c]">Kontrola pred publikovaním</p>
+            <h2 className="mt-1 text-xl font-semibold">{readiness.ready ? "Kampaň je pripravená" : "Doplňte povinné údaje"}</h2>
+          </div>
+          <ChevronDown className="shrink-0 text-[#707a72] transition-transform group-open:rotate-180" size={20} aria-hidden="true" />
+        </summary>
+        <div className="border-t border-[var(--line)] pb-6 pt-5">
+          <ul className="grid gap-x-8 gap-y-3 sm:grid-cols-2">
+            {readiness.items.map((item) => (
+              <li key={item.key} className="flex items-start gap-3 text-sm">
+                <span aria-hidden="true" className={item.ready ? "text-[#4e6a37]" : item.level === "required" ? "text-[#a1433e]" : "text-[#9a6b25]"}>{item.ready ? "✓" : item.level === "required" ? "×" : "!"}</span>
+                <span>
+                  <strong className="font-medium">{item.label}</strong>
+                  <span className="ml-2 text-xs text-[#8a928c]">{item.level === "required" ? "povinné" : "odporúčané"}</span>
+                  {item.detail && <span className="mt-1 block break-all text-xs text-[#8a928c]">{item.detail}</span>}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {readiness.ready && (campaign.status === "READY" || campaign.status === "PAUSED") && (
+            <form action={publishAction} className="mt-6">
+              <button className="rounded-[3px] bg-[var(--accent-dark)] px-5 py-2.5 text-sm font-semibold text-white">Publikovať landing page</button>
+            </form>
+          )}
+        </div>
+      </details>
       <section className="mt-10 border-y border-[var(--line)] py-8" aria-labelledby="performance-title">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>

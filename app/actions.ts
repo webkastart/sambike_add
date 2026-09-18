@@ -90,6 +90,7 @@ const maxGalleryItems = 20;
 
 type CampaignImageUrlField = (typeof campaignImageFields)[number]["url"];
 type UploadedCampaignImages = Partial<Record<CampaignImageUrlField, string>>;
+type UploadedSectionVideos = Record<string, string>;
 type CampaignMediaPlacement = "HERO" | "OFFER" | "BEFORE" | "AFTER" | "GALLERY";
 type CampaignGalleryInput = {
   mediaType: "IMAGE" | "VIDEO";
@@ -224,10 +225,17 @@ function uploadErrorMessage(error: unknown) {
   return "Nahrávanie súboru zlyhalo. Skontrolujte formát a veľkosť súboru alebo to skúste znova.";
 }
 
-async function uploadedCampaignMedia(formData: FormData, errorPath: string, galleryPlaces: number) {
+async function uploadedCampaignMedia(
+  formData: FormData,
+  errorPath: string,
+  galleryPlaces: number,
+  videoSectionIds: readonly string[] = [],
+) {
   const uploaded: UploadedCampaignImages = {};
+  const sectionVideos: UploadedSectionVideos = {};
   const galleryItems: CampaignGalleryInput[] = [];
   const cleanupUrls = new Set<string>();
+  const allowedVideoSectionIds = new Set(videoSectionIds);
 
   try {
     for (const field of campaignImageFields) {
@@ -240,6 +248,22 @@ async function uploadedCampaignMedia(formData: FormData, errorPath: string, gall
       }
       const item = await validateUploadedCampaignMedia(input.mediaUrl, "IMAGE");
       uploaded[field.url] = item.mediaUrl;
+      cleanupUrls.add(item.mediaUrl);
+    }
+
+    for (const value of formData.getAll("sectionUploadedMedia")) {
+      const input = preparedMedia(value);
+      if (
+        input.mediaType !== "VIDEO"
+        || typeof input.mediaUrl !== "string"
+        || typeof input.sectionId !== "string"
+        || !allowedVideoSectionIds.has(input.sectionId)
+        || sectionVideos[input.sectionId]
+      ) {
+        throw new CampaignMediaError("Nahrané video v sekcii má neplatné údaje.");
+      }
+      const item = await validateUploadedCampaignMedia(input.mediaUrl, "VIDEO");
+      sectionVideos[input.sectionId] = item.mediaUrl;
       cleanupUrls.add(item.mediaUrl);
     }
 
@@ -287,6 +311,7 @@ async function uploadedCampaignMedia(formData: FormData, errorPath: string, gall
     const uploadValues = [
       ...campaignImageFields.map((field) => formData.get(field.file)),
       ...formData.getAll("galleryMediaFiles"),
+      ...formData.getAll("sectionVideoFiles"),
     ].filter(hasCampaignMediaUpload);
     const uploadSize = uploadValues.reduce((total, file) => total + file.size, 0);
     if (uploadSize > maxFallbackUploadBatchSize) {
@@ -321,7 +346,26 @@ async function uploadedCampaignMedia(formData: FormData, errorPath: string, gall
       });
       if (item) cleanupUrls.add(item.mediaUrl);
     }
-    return { images: uploaded, galleryItems, cleanupUrls: [...cleanupUrls] };
+
+    const sectionVideoFiles = formData.getAll("sectionVideoFiles");
+    const sectionVideoData = formData.getAll("sectionVideoFileData").map(preparedMedia);
+    if (sectionVideoFiles.length !== sectionVideoData.length) {
+      throw new CampaignMediaError("Nahrané video v sekcii má neplatné údaje.");
+    }
+    for (const [index, value] of sectionVideoFiles.entries()) {
+      const metadata = sectionVideoData[index];
+      const sectionId = typeof metadata.sectionId === "string" ? metadata.sectionId : "";
+      if (!hasCampaignMediaUpload(value) || !allowedVideoSectionIds.has(sectionId) || sectionVideos[sectionId]) {
+        throw new CampaignMediaError("Nahrané video v sekcii má neplatné údaje.");
+      }
+      const item = await saveCampaignGalleryMedia(value);
+      if (!item || item.mediaType !== "VIDEO") {
+        throw new CampaignMediaError("Vyberte video vo formáte MP4.");
+      }
+      sectionVideos[sectionId] = item.mediaUrl;
+      cleanupUrls.add(item.mediaUrl);
+    }
+    return { images: uploaded, sectionVideos, galleryItems, cleanupUrls: [...cleanupUrls] };
   } catch (error) {
     await cleanupUploadedCampaignMedia(
       [...cleanupUrls],
@@ -590,12 +634,21 @@ export async function saveCampaignSections(id: string, formData: FormData) {
   const requestedGalleryIds = new Set(submittedGalleryItems.keys());
   const retainedGalleryItems = galleryEditorPresent ? currentGalleryItems.filter((item) => requestedGalleryIds.has(item.id)) : currentGalleryItems;
   const removedGalleryItems = galleryEditorPresent ? currentGalleryItems.filter((item) => !requestedGalleryIds.has(item.id)) : [];
-  const uploadedMedia = await uploadedCampaignMedia(formData, `/admin/kampane/${id}`, maxGalleryItems - retainedGalleryItems.length);
+  const uploadedMedia = await uploadedCampaignMedia(
+    formData,
+    `/admin/kampane/${id}`,
+    maxGalleryItems - retainedGalleryItems.length,
+    sections.filter((section) => section.type === "VIDEO").map((section) => section.id),
+  );
 
   const hero = sections.find((section) => section.type === "HERO")!;
   const offer = sections.find((section) => section.type === "OFFER");
   if (uploadedMedia.images.imageUrl) hero.content.imageUrl = uploadedMedia.images.imageUrl;
   if (offer && uploadedMedia.images.offerImageUrl) offer.content.imageUrl = uploadedMedia.images.offerImageUrl;
+  for (const section of sections) {
+    const videoUrl = uploadedMedia.sectionVideos[section.id];
+    if (section.type === "VIDEO" && videoUrl) section.content.videoUrl = videoUrl;
+  }
   const legacyData = legacyDataFromSections(sections, currentCampaign);
   const gallerySection = sections.find((section) => section.type === "GALLERY");
 

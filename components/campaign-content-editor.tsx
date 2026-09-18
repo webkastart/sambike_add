@@ -22,6 +22,7 @@ import { useFormStatus } from "react-dom";
 import { CampaignGalleryField, type CampaignGalleryFieldHandle } from "@/components/campaign-gallery-field";
 import { CampaignImageField, type CampaignImageFieldHandle } from "@/components/campaign-image-field";
 import { CampaignMediaUrlField } from "@/components/campaign-media-url-field";
+import { CampaignVideoField, type CampaignVideoFieldHandle } from "@/components/campaign-video-field";
 import { campaignSectionAiPrompt, parseCampaignSectionAiJson } from "@/lib/campaign-section-ai";
 import {
   defaultSectionContent,
@@ -151,6 +152,7 @@ export function CampaignContentEditor({ sections: initialSections, galleryItems,
   const galleryRef = useRef<CampaignGalleryFieldHandle>(null);
   const heroImageRef = useRef<CampaignImageFieldHandle>(null);
   const offerImageRef = useRef<CampaignImageFieldHandle>(null);
+  const videoRefs = useRef(new Map<string, CampaignVideoFieldHandle>());
   const galleryOnlyItems = galleryItems.filter((item) => item.placement === "GALLERY");
 
   function replaceSection(id: string, update: (section: EditableCampaignSection) => EditableCampaignSection) {
@@ -286,6 +288,19 @@ export function CampaignContentEditor({ sections: initialSections, galleryItems,
         formData.delete("galleryMediaFiles");
         gallery.items.forEach((item) => formData.append("galleryUploadedMedia", JSON.stringify(item)));
       }
+      formData.delete("sectionVideoFiles");
+      formData.delete("sectionVideoFileData");
+      formData.delete("sectionUploadedMedia");
+      for (const section of sections.filter((item) => item.type === "VIDEO")) {
+        const prepared = await videoRefs.current.get(section.id)?.prepareUpload();
+        if (prepared?.item) {
+          section.content.videoUrl = prepared.item.mediaUrl;
+          formData.append("sectionUploadedMedia", JSON.stringify({ sectionId: section.id, ...prepared.item }));
+        } else if (prepared?.file) {
+          formData.append("sectionVideoFiles", prepared.file);
+          formData.append("sectionVideoFileData", JSON.stringify({ sectionId: section.id }));
+        }
+      }
       formData.set("campaignSections", JSON.stringify(sections));
       await action(formData);
     } catch (error) {
@@ -350,7 +365,7 @@ export function CampaignContentEditor({ sections: initialSections, galleryItems,
                   </div>
                   {aiMessage && <p className={`mt-4 flex items-start gap-2 text-sm ${aiMessage.kind === "success" ? "text-[#35623d]" : "text-[#a1433e]"}`} role={aiMessage.kind === "error" ? "alert" : "status"}>{aiMessage.kind === "success" ? <CheckCircle2 className="mt-0.5 shrink-0" size={17} aria-hidden="true" /> : <AlertCircle className="mt-0.5 shrink-0" size={17} aria-hidden="true" />}<span>{aiMessage.text}</span></p>}
                 </div>}
-                <SectionFields section={section} updateContent={updateContent} galleryItems={galleryOnlyItems} galleryRef={galleryRef} heroImageRef={heroImageRef} offerImageRef={offerImageRef} currentCampaignId={currentCampaignId} mediaLibrary={mediaLibrary} />
+                <SectionFields section={section} updateContent={updateContent} galleryItems={galleryOnlyItems} galleryRef={galleryRef} heroImageRef={heroImageRef} offerImageRef={offerImageRef} videoRefs={videoRefs} currentCampaignId={currentCampaignId} mediaLibrary={mediaLibrary} />
                 <div className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-3 border-t border-[var(--line)] pt-5">
                   <button type="button" onClick={finishEditor} className="text-sm font-semibold text-[var(--accent-dark)]">Hotovo</button>
                   <button type="button" onClick={cancelEditor} className="text-sm text-[#6f786f]">Zrušiť úpravy sekcie</button>
@@ -376,13 +391,14 @@ export function CampaignContentEditor({ sections: initialSections, galleryItems,
   );
 }
 
-function SectionFields({ section, updateContent, galleryItems, galleryRef, heroImageRef, offerImageRef, currentCampaignId, mediaLibrary }: {
+function SectionFields({ section, updateContent, galleryItems, galleryRef, heroImageRef, offerImageRef, videoRefs, currentCampaignId, mediaLibrary }: {
   section: EditableCampaignSection;
   updateContent: (id: string, key: string, value: unknown) => void;
   galleryItems: CampaignGalleryItem[];
   galleryRef: React.RefObject<CampaignGalleryFieldHandle | null>;
   heroImageRef: React.RefObject<CampaignImageFieldHandle | null>;
   offerImageRef: React.RefObject<CampaignImageFieldHandle | null>;
+  videoRefs: React.RefObject<Map<string, CampaignVideoFieldHandle>>;
   currentCampaignId?: string;
   mediaLibrary: CampaignMediaLibraryItem[];
 }) {
@@ -405,7 +421,7 @@ function SectionFields({ section, updateContent, galleryItems, galleryRef, heroI
     return <div className="space-y-7">{common}<div className="space-y-3">{items.map((item, index) => <div key={index} draggable onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", String(index)); }} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); dropItem(Number(event.dataTransfer.getData("text/plain")), index); }} className="grid gap-3 border-t border-[var(--line)] pt-4 sm:grid-cols-[auto_1fr_1.4fr_auto]"><span className="inline-flex size-9 cursor-grab items-center justify-center text-[#8a938c]" aria-label="Potiahnutím zmeniť poradie"><GripVertical size={16} /></span><TextControl label={labels[0]} value={typeof item[keys[0]] === "string" ? item[keys[0]] as string : ""} maxLength={section.type === "FAQ" ? 160 : 100} onChange={(next) => updateItem(index, keys[0], next)} /><TextControl label={labels[1]} value={typeof item[keys[1]] === "string" ? item[keys[1]] as string : ""} maxLength={section.type === "FAQ" ? 600 : 500} multiline onChange={(next) => updateItem(index, keys[1], next)} /><div className="flex items-start pt-5"><button type="button" disabled={index === 0} onClick={() => moveItem(index, -1)} className="size-8 disabled:opacity-25" aria-label="Posunúť položku vyššie"><ArrowUp size={15} /></button><button type="button" disabled={index === items.length - 1} onClick={() => moveItem(index, 1)} className="size-8 disabled:opacity-25" aria-label="Posunúť položku nižšie"><ArrowDown size={15} /></button><button type="button" onClick={() => updateContent(section.id, "items", items.filter((_, itemIndex) => itemIndex !== index))} className="size-8 text-[#9a4540]" aria-label="Odstrániť položku"><Trash2 size={15} /></button></div></div>)}<button type="button" onClick={() => updateContent(section.id, "items", [...items, { [keys[0]]: "", [keys[1]]: "" }])} className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--accent-dark)]"><Plus size={15} /> Pridať {singular}</button></div></div>;
   }
 
-  if (section.type === "VIDEO") return <div className="space-y-7">{common}<CampaignMediaUrlField label="Odkaz na video" value={value("videoUrl")} onChange={field("videoUrl")} mediaLibrary={mediaLibrary} currentCampaignId={currentCampaignId} mediaTypes={["VIDEO"]} /><TextControl label="Popis videa" value={value("caption")} maxLength={240} onChange={field("caption")} /></div>;
+  if (section.type === "VIDEO") return <div className="space-y-7">{common}<CampaignVideoField ref={(handle) => { if (handle) videoRefs.current.set(section.id, handle); else videoRefs.current.delete(section.id); }} currentVideoUrl={value("videoUrl")} onUrlChange={field("videoUrl")} mediaLibrary={mediaLibrary} currentCampaignId={currentCampaignId} /><TextControl label="Popis videa" value={value("caption")} maxLength={240} onChange={field("caption")} /></div>;
   if (section.type === "CTA") return <div className="space-y-7">{common}<div className="grid gap-5 sm:grid-cols-2"><TextControl label="Text tlačidla" value={value("ctaLabel")} maxLength={80} onChange={field("ctaLabel")} /><TextControl label="Kam tlačidlo vedie" value={value("href")} maxLength={1000} onChange={field("href")} /></div></div>;
   if (section.type === "TEXT_IMAGE") return <div className="space-y-7">{common}<div className="grid gap-5 sm:grid-cols-2"><CampaignMediaUrlField label="Odkaz na obrázok" value={value("imageUrl")} onChange={field("imageUrl")} mediaLibrary={mediaLibrary} currentCampaignId={currentCampaignId} mediaTypes={["IMAGE"]} /><TextControl label="Alternatívny text obrázka" value={value("imageAlt")} maxLength={240} onChange={field("imageAlt")} /></div></div>;
   return common;

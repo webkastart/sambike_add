@@ -376,7 +376,7 @@ export default async function CampaignLandingPage({ params, searchParams }: Prop
       {jsonLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />}
 
       <header className="mx-auto flex h-24 max-w-[82rem] items-center justify-between gap-4 px-5 sm:px-8 lg:sticky lg:top-0 lg:z-50 lg:bg-[#f3f4f1]/95 lg:backdrop-blur-sm">
-        <Logo href={`/kampan/${campaign.slug}`} stacked />
+        <Logo href={`/kampan/${campaign.slug}`} />
         <div className="flex items-center gap-3 sm:gap-5">
           <a href={instagramProfileUrl} target="_blank" rel="noreferrer" className="hidden text-xs font-semibold tracking-[.08em] text-[#6e706e] transition hover:text-[var(--accent)] sm:inline">@sambike_snv</a>
           <a href={telHref(campaign.phone)} data-track="phone" className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-full bg-white px-3 text-sm font-semibold shadow-[0_5px_18px_rgba(28,38,31,.06)] ring-1 ring-black/[.035] transition hover:-translate-y-0.5 hover:text-[var(--accent)] sm:bg-transparent sm:px-0 sm:shadow-none sm:ring-0">
@@ -389,7 +389,7 @@ export default async function CampaignLandingPage({ params, searchParams }: Prop
 
       <footer className="px-5 py-10 sm:px-8">
         <div className="mx-auto flex max-w-[82rem] flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
-          <Logo href={`/kampan/${campaign.slug}`} stacked />
+          <Logo href={`/kampan/${campaign.slug}`} />
           <div className="flex flex-col gap-1 text-xs text-[#747774] sm:text-right">{campaign.address && <span>{campaign.address}</span>}<span>© {new Date().getFullYear()} Sambike · servis bicyklov</span><Link href={campaign.legalUrl} className="underline underline-offset-2">Ochrana osobných údajov</Link>{!preview && <CampaignTracking campaignSlug={campaign.slug} pixelId={pixelId} variant={variant} />}</div>
         </div>
       </footer>
