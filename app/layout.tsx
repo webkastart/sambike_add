@@ -12,7 +12,7 @@ export async function generateMetadata(): Promise<Metadata> {
     metadataBase,
     title: { default: "SAMBIKE kampane", template: "%s · SAMBIKE" },
     description: "Servis bicyklov, predaj dielov a doplnkov SAMBIKE v Spišskej Novej Vsi.",
-    icons: { icon: "/brand/sambike-mark.png", apple: "/brand/sambike-mark.png" },
+    icons: { icon: "/brand/sambike-tab-icon.svg", apple: "/brand/sambike-mark.png" },
     openGraph: {
       title: "SAMBIKE kampane",
       description: "Servis bicyklov, diely a doplnky s osobným prístupom.",
