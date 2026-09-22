@@ -40,6 +40,8 @@ export type MetaAdDraftInput = {
   minAge: number;
   maxAge: number;
   platforms: Array<"facebook" | "instagram">;
+  creativeMediaType: "IMAGE" | "VIDEO";
+  creativeMediaUrl: string;
   startsAt: Date | null;
   endsAt: Date | null;
 };
@@ -47,7 +49,7 @@ export type MetaAdDraftInput = {
 export type MetaCampaignSource = {
   name: string;
   slug: string;
-  imageUrl: string;
+  fallbackImageUrl: string;
 };
 
 type MetaConfig = {
@@ -201,7 +203,7 @@ async function metaRequest<T>(
 function publicCampaignUrl(config: MetaConfig, slug: string) {
   const url = new URL(`/kampan/${slug}`, config.appUrl);
   if (url.protocol !== "https:" || ["localhost", "127.0.0.1"].includes(url.hostname)) {
-    throw new MetaAdsError("APP_URL musí byť verejná HTTPS adresa, aby Meta vedela otvoriť stránku a obrázok kampane.");
+    throw new MetaAdsError("APP_URL musí byť verejná HTTPS adresa, aby Meta vedela otvoriť stránku a kreatívu kampane.");
   }
   url.searchParams.set("utm_source", "meta");
   url.searchParams.set("utm_medium", "paid_social");
@@ -209,10 +211,13 @@ function publicCampaignUrl(config: MetaConfig, slug: string) {
   return url.toString();
 }
 
-function publicImageUrl(config: MetaConfig, imageUrl: string) {
-  const url = new URL(imageUrl, config.appUrl);
+function publicMediaUrl(config: MetaConfig, mediaUrl: string, mediaType: "IMAGE" | "VIDEO") {
+  const url = new URL(mediaUrl, config.appUrl);
   if (url.protocol !== "https:" || ["localhost", "127.0.0.1"].includes(url.hostname)) {
-    throw new MetaAdsError("Obrázok reklamy musí byť dostupný na verejnej HTTPS adrese.");
+    throw new MetaAdsError(`${mediaType === "VIDEO" ? "Video" : "Obrázok"} reklamy musí byť dostupné na verejnej HTTPS adrese.`);
+  }
+  if (mediaType === "VIDEO" && !url.pathname.toLowerCase().endsWith(".mp4")) {
+    throw new MetaAdsError("Video reklamy musí byť vo formáte MP4.");
   }
   return url.toString();
 }
@@ -258,7 +263,8 @@ export async function createRemoteMetaAd(source: MetaCampaignSource, input: Meta
   }
 
   const destinationUrl = publicCampaignUrl(config, source.slug);
-  const imageUrl = publicImageUrl(config, source.imageUrl);
+  const creativeMediaUrl = publicMediaUrl(config, input.creativeMediaUrl, input.creativeMediaType);
+  const fallbackImageUrl = publicMediaUrl(config, source.fallbackImageUrl, "IMAGE");
   let createdCampaignId = "";
 
   try {
@@ -304,17 +310,33 @@ export async function createRemoteMetaAd(source: MetaCampaignSource, input: Meta
       },
     });
 
-    const objectStorySpec: Record<string, unknown> = {
-      page_id: config.pageId,
-      link_data: {
+    const objectStorySpec: Record<string, unknown> = { page_id: config.pageId };
+    if (input.creativeMediaType === "VIDEO") {
+      const video = await metaRequest<MetaIdResponse>(`act_${config.adAccountId}/advideos`, {
+        method: "POST",
+        params: {
+          name: `${source.name} | video`,
+          file_url: creativeMediaUrl,
+        },
+      });
+      objectStorySpec.video_data = {
+        video_id: video.id,
+        image_url: fallbackImageUrl,
+        message: input.primaryText,
+        title: input.headline,
+        link_description: input.description,
+        call_to_action: { type: "LEARN_MORE", value: { link: destinationUrl } },
+      };
+    } else {
+      objectStorySpec.link_data = {
         link: destinationUrl,
-        picture: imageUrl,
+        picture: creativeMediaUrl,
         message: input.primaryText,
         name: input.headline,
         description: input.description,
         call_to_action: { type: "LEARN_MORE", value: { link: destinationUrl } },
-      },
-    };
+      };
+    }
     if (input.platforms.includes("instagram")) {
       objectStorySpec.instagram_actor_id = config.instagramActorId;
     }

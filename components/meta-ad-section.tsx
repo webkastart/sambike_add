@@ -1,8 +1,9 @@
-import Image from "next/image";
+/* eslint-disable @next/next/no-img-element -- campaign media can use arbitrary validated local or remote URLs */
 import Link from "next/link";
 import type { Campaign, MetaAdCampaign } from "@/generated/prisma/client";
-import { metaAdsManagerUrl, type MetaConnectionSummary } from "@/lib/meta-ads";
+import { metaAdsManagerUrl, metaBillingUrl, type MetaConnectionSummary } from "@/lib/meta-ads";
 import { MetaAdControls } from "@/components/meta-ad-controls";
+import type { CampaignMediaLibraryItem } from "@/lib/campaign-media-library-types";
 
 type CampaignSummary = Pick<Campaign, "id" | "name" | "slug" | "headline" | "description" | "imageUrl" | "priceText" | "status">;
 
@@ -30,6 +31,7 @@ export function MetaAdSection({
   ad,
   leadCount,
   connection,
+  creativeMedia,
   createAction,
   startAction,
   pauseAction,
@@ -42,6 +44,7 @@ export function MetaAdSection({
   ad: MetaAdCampaign | null;
   leadCount: number;
   connection: MetaConnectionSummary;
+  creativeMedia: CampaignMediaLibraryItem[];
   createAction: (formData: FormData) => Promise<void>;
   startAction: (formData: FormData) => Promise<void>;
   pauseAction: () => Promise<void>;
@@ -52,6 +55,16 @@ export function MetaAdSection({
 }) {
   const effectiveStatus = ad?.effectiveStatus || ad?.status || "UNKNOWN";
   const active = ad?.status === "ACTIVE" && effectiveStatus === "ACTIVE";
+  const availableCreativeMedia = creativeMedia.length ? creativeMedia : [{
+    mediaUrl: campaign.imageUrl,
+    mediaType: "IMAGE" as const,
+    campaignIds: [campaign.id],
+    campaignNames: [campaign.name],
+    label: "Úvodný obrázok",
+    lastUsedAt: "",
+  }];
+  const selectedCreativeUrl = ad?.creativeMediaUrl || campaign.imageUrl;
+  const billingUrl = metaBillingUrl();
 
   return (
     <section className="mt-16 border-t border-[var(--line)] pt-10" aria-labelledby="meta-ad-title">
@@ -106,6 +119,7 @@ export function MetaAdSection({
             <div><p className="text-xs text-[#8a928c]">Nadpis</p><p className="mt-1 font-medium">{ad.adHeadline}</p></div>
             <div><p className="text-xs text-[#8a928c]">Publikum</p><p className="mt-1">{ad.radiusKm} km od Spišskej Novej Vsi · {ad.minAge}–{ad.maxAge === 65 ? "65+" : ad.maxAge} rokov</p></div>
             <div><p className="text-xs text-[#8a928c]">Termín</p><p className="mt-1">{dateTime(ad.startsAt)} – {dateTime(ad.endsAt)}</p></div>
+            <div><p className="text-xs text-[#8a928c]">Kreatíva</p><p className="mt-1">{ad.creativeMediaType === "VIDEO" ? "MP4 video" : "Obrázok"}</p></div>
           </div>
           {ad.lastError && <p className="mt-6 text-sm font-medium text-[#a1433e]">{ad.lastError}</p>}
           {ad.previewFacebookUrl || ad.previewInstagramUrl ? <div className="mt-5 flex flex-wrap gap-5 text-sm font-semibold text-[var(--accent-dark)]">{ad.previewFacebookUrl && <a href={ad.previewFacebookUrl} target="_blank" rel="noreferrer">Facebook Meta preview →</a>}{ad.previewInstagramUrl && <a href={ad.previewInstagramUrl} target="_blank" rel="noreferrer">Instagram Meta preview →</a>}</div> : <p className="mt-5 text-sm text-[#737c75]">Meta preview nie je dostupné. Náhľad landing page nie je Meta preview.</p>}
@@ -114,6 +128,10 @@ export function MetaAdSection({
             {ad.lastSyncedAt ? `Výsledky aktualizované ${dateTime(ad.lastSyncedAt)}` : "Výsledky ešte neboli synchronizované."}
           </p>
           <form action={budgetAction} className="mt-6 flex max-w-sm items-end gap-4"><label className="flex-1"><span className="text-xs font-semibold uppercase tracking-[.12em] text-[#747d76]">Denný rozpočet v EUR</span><input className="admin-field" name="dailyBudget" type="number" min="5" max={connection.maxCampaignDailyBudgetCents / 100} defaultValue={ad.dailyBudgetCents / 100} required /></label><button type="submit" className="pb-3 text-sm font-semibold text-[var(--accent-dark)]">Uložiť</button></form>
+          <div className="mt-7 flex flex-col gap-3 border-y border-[var(--line)] py-5 sm:flex-row sm:items-center sm:justify-between">
+            <div><p className="text-sm font-semibold">Platobná metóda</p><p className="mt-1 text-xs leading-5 text-[#7b857d]">Kartu bezpečne spravuje Meta. Sambike Ads nečíta ani neukladá číslo karty alebo CVC.</p></div>
+            <a href={billingUrl} target="_blank" rel="noreferrer" className="shrink-0 text-sm font-semibold text-[var(--accent-dark)]">Spravovať kartu v Meta →</a>
+          </div>
           <MetaAdControls
             active={active}
             canActivate={connection.mode === "live" && ad.mode === "live" && campaign.status === "PUBLISHED"}
@@ -173,17 +191,32 @@ export function MetaAdSection({
               <span className="text-xs font-semibold uppercase tracking-[.12em] text-[#747d76]">Koniec · voliteľné</span>
               <input className="admin-field" name="endsAt" type="datetime-local" />
             </label>
+            <div className="grid gap-3 border-y border-[var(--line)] py-5 md:col-span-2 sm:grid-cols-[1fr_auto] sm:items-center">
+              <div><p className="text-sm font-semibold">Platobná metóda</p><p className="mt-1 text-xs leading-5 text-[#7b857d]">Kartu zadáte priamo v Meta pre tento reklamný účet. Sambike Ads nečíta ani neukladá číslo karty alebo CVC.</p></div>
+              <a href={billingUrl} target="_blank" rel="noreferrer" className="text-sm font-semibold text-[var(--accent-dark)]">Pridať alebo skontrolovať kartu v Meta →</a>
+            </div>
           </div>
 
-          <div className="mt-9 grid gap-5 border-y border-[var(--line)] py-6 sm:grid-cols-[8rem_1fr] sm:items-center">
-            <div className="relative aspect-[4/3] overflow-hidden bg-[#edf0ec]">
-              <Image src={campaign.imageUrl} alt="" fill sizes="128px" className="object-cover" />
+          <fieldset className="mt-9 border-y border-[var(--line)] py-6">
+            <legend className="text-xs font-semibold uppercase tracking-[.12em] text-[#747d76]">Kreatíva reklamy</legend>
+            <p className="mt-2 text-sm text-[#737c75]">Vyberte obrázok alebo MP4 video, ktoré už patrí ku kampani.</p>
+            <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {availableCreativeMedia.map((item, index) => {
+                const isHero = item.mediaUrl === campaign.imageUrl;
+                const label = isHero ? "Úvodný obrázok" : item.label || `${item.mediaType === "VIDEO" ? "Video" : "Obrázok"} ${index + 1}`;
+                return <label key={`${item.mediaType}:${item.mediaUrl}`} className="grid cursor-pointer grid-cols-[auto_7rem_1fr] items-center gap-3 border border-[var(--line)] p-3 transition hover:border-[#9ba89d] has-[:checked]:border-[var(--accent-dark)]">
+                  <input type="radio" name="creativeMediaUrl" value={item.mediaUrl} defaultChecked={item.mediaUrl === selectedCreativeUrl} required className="size-4 accent-[#26372a]" />
+                  <span className="relative block aspect-video overflow-hidden bg-[#edf0ec]">
+                    {item.mediaType === "VIDEO"
+                      ? <video src={item.mediaUrl} muted playsInline preload="metadata" className="size-full object-cover" />
+                      : <img src={item.mediaUrl} alt="" className="size-full object-cover" />}
+                  </span>
+                  <span><strong className="block text-sm">{label}</strong><span className="mt-1 block text-xs text-[#879088]">{item.mediaType === "VIDEO" ? "MP4 video" : "Obrázok"}</span></span>
+                </label>;
+              })}
             </div>
-            <div>
-              <p className="text-sm font-medium">Použije sa úvodný obrázok kampane</p>
-              <p className="mt-1 text-xs leading-relaxed text-[#879088]">Cieľ: /kampan/{campaign.slug} · UTM parametre doplníme automaticky.</p>
-            </div>
-          </div>
+            <p className="mt-4 text-xs leading-relaxed text-[#879088]">Cieľ: /kampan/{campaign.slug} · UTM parametre doplníme automaticky. Meta vytvorí reklamu najprv ako pozastavenú.</p>
+          </fieldset>
 
           <div className="mt-7 flex flex-wrap items-center gap-4">
             <button type="submit" className="rounded-[3px] bg-[var(--accent-dark)] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#075eac]">

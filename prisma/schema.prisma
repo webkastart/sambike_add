@@ -248,6 +248,8 @@ model MetaAdCampaign {
   primaryText      String
   adHeadline       String
   adDescription    String?
+  creativeMediaType String           @default("IMAGE")
+  creativeMediaUrl String
   destinationUrl   String
   startsAt         DateTime?
   endsAt           DateTime?

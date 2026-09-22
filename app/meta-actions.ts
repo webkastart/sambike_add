@@ -20,6 +20,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin-auth";
 import { persistMetaAdSync } from "@/lib/meta-sync";
 import { campaignReadiness } from "@/lib/campaign-workflow";
+import { getCampaignMediaLibrary } from "@/lib/campaign-media-library";
 
 function value(formData: FormData, name: string) {
   return String(formData.get(name) ?? "").trim();
@@ -37,7 +38,9 @@ function optionalDate(formData: FormData, name: string) {
   return parsed;
 }
 
-async function parseDraftInput(formData: FormData): Promise<MetaAdDraftInput> {
+type MetaAdFormInput = Omit<MetaAdDraftInput, "creativeMediaType">;
+
+async function parseDraftInput(formData: FormData): Promise<MetaAdFormInput> {
   const primaryText = value(formData, "primaryText").slice(0, 1000);
   const headline = value(formData, "adHeadline").slice(0, 255);
   const description = value(formData, "adDescription").slice(0, 255);
@@ -48,6 +51,7 @@ async function parseDraftInput(formData: FormData): Promise<MetaAdDraftInput> {
   const platforms = formData.getAll("platform").filter(
     (platform): platform is "facebook" | "instagram" => platform === "facebook" || platform === "instagram",
   );
+  const creativeMediaUrl = value(formData, "creativeMediaUrl").slice(0, 1000);
   const startsAt = optionalDate(formData, "startsAt");
   const endsAt = optionalDate(formData, "endsAt");
 
@@ -77,6 +81,7 @@ async function parseDraftInput(formData: FormData): Promise<MetaAdDraftInput> {
     minAge,
     maxAge,
     platforms: [...new Set(platforms)],
+    creativeMediaUrl,
     startsAt,
     endsAt,
   };
@@ -118,7 +123,7 @@ export async function createMetaAd(campaignId: string, formData: FormData) {
   let localAdId = "";
 
   try {
-    const input = await parseDraftInput(formData);
+    const draftInput = await parseDraftInput(formData);
     const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
       include: { metaAd: true },
@@ -126,6 +131,16 @@ export async function createMetaAd(campaignId: string, formData: FormData) {
     if (!campaign) throw new MetaAdsError("Kampaň už neexistuje.");
     if (campaign.status !== "PUBLISHED") throw new MetaAdsError("Pred vytvorením reklamy publikujte landing page.");
     if (campaign.metaAd?.metaCampaignId) throw new MetaAdsError("Táto kampaň už má vytvorenú Meta reklamu.");
+    const requestedMediaUrl = draftInput.creativeMediaUrl || campaign.imageUrl;
+    const selectedMedia = (await getCampaignMediaLibrary(campaignId)).find((item) => (
+      item.mediaUrl === requestedMediaUrl && item.campaignIds.includes(campaignId)
+    ));
+    if (!selectedMedia) throw new MetaAdsError("Vybraná kreatíva už nepatrí ku kampani. Obnovte stránku a vyberte ju znova.");
+    const input: MetaAdDraftInput = {
+      ...draftInput,
+      creativeMediaUrl: selectedMedia.mediaUrl,
+      creativeMediaType: selectedMedia.mediaType,
+    };
     const connection = await getMetaConnectionSettings();
     const total = await prisma.metaAdCampaign.aggregate({ where: { status: "ACTIVE", campaignId: { not: campaignId } }, _sum: { dailyBudgetCents: true } });
     assertMetaBudgetLimits(input.dailyBudgetCents, total._sum.dailyBudgetCents ?? 0, connection);
@@ -147,6 +162,8 @@ export async function createMetaAd(campaignId: string, formData: FormData) {
             primaryText: input.primaryText,
             adHeadline: input.headline,
             adDescription: input.description || null,
+            creativeMediaType: input.creativeMediaType,
+            creativeMediaUrl: input.creativeMediaUrl,
             destinationUrl,
             startsAt: input.startsAt,
             endsAt: input.endsAt,
@@ -167,6 +184,8 @@ export async function createMetaAd(campaignId: string, formData: FormData) {
             primaryText: input.primaryText,
             adHeadline: input.headline,
             adDescription: input.description || null,
+            creativeMediaType: input.creativeMediaType,
+            creativeMediaUrl: input.creativeMediaUrl,
             destinationUrl,
             startsAt: input.startsAt,
             endsAt: input.endsAt,
@@ -183,7 +202,7 @@ export async function createMetaAd(campaignId: string, formData: FormData) {
       ]);
     } else {
       const remote = await createRemoteMetaAd(
-        { name: campaign.name, slug: campaign.slug, imageUrl: campaign.imageUrl },
+        { name: campaign.name, slug: campaign.slug, fallbackImageUrl: campaign.imageUrl },
         input,
       );
       await prisma.$transaction([

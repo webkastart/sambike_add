@@ -39,6 +39,12 @@ function nullable(value: unknown) {
 const campaigns = rows("Campaign");
 if (campaigns.length === 0) throw new Error("Zdrojová SQLite databáza neobsahuje žiadne kampane; import bol zastavený.");
 
+function legacyCampaignImage(campaignId: unknown) {
+  const campaign = campaigns.find((row) => String(row.id) === String(campaignId));
+  if (!campaign?.imageUrl) throw new Error(`Kampaň ${String(campaignId)} nemá úvodný obrázok pre kreatívu reklamy.`);
+  return String(campaign.imageUrl);
+}
+
 try {
   await prisma.campaign.createMany({
     skipDuplicates: true,
@@ -98,7 +104,8 @@ try {
       id: String(row.id), campaignId: String(row.campaignId), metaCampaignId: nullable(row.metaCampaignId), metaAdSetId: nullable(row.metaAdSetId),
       metaCreativeId: nullable(row.metaCreativeId), metaAdId: nullable(row.metaAdId), status: String(row.status), effectiveStatus: nullable(row.effectiveStatus),
       platforms: String(row.platforms), dailyBudgetCents: Number(row.dailyBudgetCents), radiusKm: Number(row.radiusKm), minAge: Number(row.minAge), maxAge: Number(row.maxAge),
-      primaryText: String(row.primaryText), adHeadline: String(row.adHeadline), adDescription: nullable(row.adDescription), destinationUrl: String(row.destinationUrl),
+      primaryText: String(row.primaryText), adHeadline: String(row.adHeadline), adDescription: nullable(row.adDescription),
+      creativeMediaType: "IMAGE", creativeMediaUrl: legacyCampaignImage(row.campaignId), destinationUrl: String(row.destinationUrl),
       startsAt: row.startsAt ? date(row.startsAt) : null, endsAt: row.endsAt ? date(row.endsAt) : null, spendCents: Number(row.spendCents), impressions: Number(row.impressions),
       clicks: Number(row.clicks), metaLeads: Number(row.metaLeads), lastSyncedAt: row.lastSyncedAt ? date(row.lastSyncedAt) : null, lastError: nullable(row.lastError),
       createdAt: date(row.createdAt), updatedAt: date(row.updatedAt),

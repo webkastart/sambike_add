@@ -143,7 +143,7 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
       title: campaign.ogTitle || campaign.seoTitle || campaign.headline,
       description: campaign.ogDescription || campaign.seoDescription || campaign.description,
       url: canonical,
-      images: [campaign.ogImageUrl || campaign.imageUrl || "/og.png"],
+      images: [campaign.ogImageUrl || campaign.imageUrl || "/brand/sambike-service-logo.png"],
     },
   };
 }
@@ -233,7 +233,7 @@ export default async function CampaignLandingPage({ params, searchParams }: Prop
         </article>
         <aside className="flex min-h-0 self-start flex-col rounded-[2rem] bg-white p-6 shadow-[0_18px_55px_rgba(28,38,31,.055)] ring-1 ring-black/[.025] sm:rounded-[2.75rem] sm:p-9 lg:p-8">
           <div className="flex items-start justify-between">
-            <Image src="/brand/sambike-mark.png" alt="" width={240} height={220} className="h-auto w-14" />
+            <Image src="/brand/sambike-service-logo.png" alt="Sambike · servis bicyklov" width={374} height={130} className="h-auto w-36 mix-blend-multiply sm:w-40" />
             {showServiceParts ? <ServiceIllustration name="service-tools" className="-mr-1 -mt-2 h-14 w-16 sm:-mr-3 sm:-mt-5 sm:h-28 sm:w-32" /> : <span className="size-2.5 rounded-full bg-[var(--accent)]" aria-hidden="true" />}
           </div>
           <div className="mx-auto my-8 max-w-sm text-center lg:my-8"><p className="text-xs font-bold uppercase tracking-[.18em] text-[var(--accent)]">Detail kampane</p><h2 className="mt-3 text-3xl font-bold tracking-[-.04em]">Všetko podstatné na jednom mieste.</h2></div><dl className="space-y-3">{detailRows.map(([label, value]) => <div key={label} className="rounded-[1.15rem] bg-[#f4f5f2] px-5 py-4"><dt className="text-xs font-medium text-[#7a7e79]">{label}</dt><dd className="mt-1 text-sm font-semibold leading-relaxed">{value}</dd></div>)}</dl>{processSteps.length > 0 && <ol className="mt-6 space-y-4">{processSteps.slice(0, 3).map((step, index) => <li key={step.title} className="flex gap-3 text-sm"><span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-[#e9f3fc] text-xs font-bold text-[var(--accent)]">{index + 1}</span><span><strong className="block">{step.title}</strong><span className="mt-0.5 block text-[#747774]">{step.text}</span></span></li>)}</ol>}

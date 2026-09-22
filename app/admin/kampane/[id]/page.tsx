@@ -260,6 +260,7 @@ export default async function EditCampaignPage({
         ad={campaign.metaAd}
         leadCount={campaign._count.leads}
         connection={await getMetaConnectionSettings()}
+        creativeMedia={mediaLibrary.filter((item) => item.campaignIds.includes(campaign.id))}
         createAction={createMetaAction}
         startAction={startMetaAction}
         pauseAction={pauseMetaAction}

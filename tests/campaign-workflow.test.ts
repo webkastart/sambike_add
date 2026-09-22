@@ -11,7 +11,7 @@ import {
   variantConversion,
   verifyCampaignPreviewToken,
 } from "@/lib/campaign-workflow";
-import { assertMetaBudgetLimits, getMetaConnectionSummary, getMetaMode, hasExplicitLiveConfirmation, setRemoteMetaAdStatus } from "@/lib/meta-ads";
+import { assertMetaBudgetLimits, getMetaConnectionSummary, getMetaMode, hasExplicitLiveConfirmation, metaBillingUrl, setRemoteMetaAdStatus } from "@/lib/meta-ads";
 
 const env = { ...process.env };
 afterEach(() => { process.env = { ...env }; });
@@ -85,6 +85,11 @@ describe("A/B privacy and Meta guardrails", () => {
     process.env.META_MAX_GLOBAL_DAILY_BUDGET_CENTS = "7000";
     expect(getMetaMode()).toBe("sandbox");
     expect(getMetaConnectionSummary()).toMatchObject({ mode: "sandbox", maxCampaignDailyBudgetCents: 2500, maxGlobalDailyBudgetCents: 7000 });
+  });
+
+  it("opens Meta billing for the configured ad account without handling card data", () => {
+    process.env.META_AD_ACCOUNT_ID = "act_123456";
+    expect(metaBillingUrl()).toBe("https://business.facebook.com/billing_hub/accounts/details/?act=123456");
   });
 
   it("never activates a remote ad in sandbox", async () => {
