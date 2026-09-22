@@ -13,7 +13,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 Sambike Ads is a Slovak campaign landing-page and lead-capture app with an internal campaign/lead administration area.
 
 - Stack: Next.js 16 App Router, React 19, Tailwind CSS 4, Prisma 7 and PostgreSQL 17 (Docker Compose locally).
-- The canonical Sambike logo is `public/brand/sambike-service-logo.png`; shared page chrome must render it through `components/logo.tsx` so admin, login and campaign pages stay consistent.
+- Official brand assets are `public/brand/sambike-service-logo.png` (horizontal wordmark from `SAMBIKE_VYLOHA.pdf`) and `public/brand/sambike-mark.png` (mark-only favicon from `SAMBIKE_PULT_PRESS.pdf`); shared page chrome must render the wordmark through `components/logo.tsx` so admin, login and campaign pages stay consistent.
 - Campaign mutations and public lead submission live in `app/actions.ts`; authorized CRM mutations live in `app/crm-actions.ts`; the public landing page is `app/kampan/[slug]/page.tsx`.
 - Prisma schema and PostgreSQL migrations live under `prisma/`; historical SQLite migrations are read-only under `prisma/legacy-sqlite-migrations/`. The ignored generated client lives under `generated/prisma/` and must be refreshed with `npm run db:generate` after schema edits (also handled by `postinstall`).
 - Admin authentication is centralized in `lib/admin-auth.ts`, with optimistic page protection in `proxy.ts`; every admin server action and API mutation must still call the server-side guard. Login and lead throttling use PostgreSQL `RateLimitBucket`, not process memory.

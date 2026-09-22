@@ -12,11 +12,11 @@ export async function generateMetadata(): Promise<Metadata> {
     metadataBase,
     title: { default: "SAMBIKE kampane", template: "%s · SAMBIKE" },
     description: "Servis bicyklov, predaj dielov a doplnkov SAMBIKE v Spišskej Novej Vsi.",
-    icons: { icon: "/brand/sambike-service-logo.png", apple: "/brand/sambike-service-logo.png" },
+    icons: { icon: "/brand/sambike-mark.png", apple: "/brand/sambike-mark.png" },
     openGraph: {
       title: "SAMBIKE kampane",
       description: "Servis bicyklov, diely a doplnky s osobným prístupom.",
-      images: [{ url: "/brand/sambike-service-logo.png", width: 374, height: 130, alt: "Sambike · servis bicyklov" }],
+      images: [{ url: "/brand/sambike-service-logo.png", width: 1600, height: 435, alt: "Sambike · servis bicyklov" }],
     },
     twitter: { card: "summary", images: ["/brand/sambike-service-logo.png"] },
   };

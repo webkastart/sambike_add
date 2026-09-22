@@ -7,10 +7,10 @@ export function Logo({ href = "/admin" }: { href?: string }) {
       <Image
         src="/brand/sambike-service-logo.png"
         alt="Sambike · servis bicyklov"
-        width={374}
-        height={130}
+        width={1600}
+        height={435}
         loading="eager"
-        className="h-auto w-full mix-blend-multiply"
+        className="h-auto w-full"
       />
     </Link>
   );
